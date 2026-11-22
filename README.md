@@ -5,23 +5,6 @@ Finote is a student study workspace that combines note-taking, class scheduling,
 > [!IMPORTANT]
 > The repository is still under development. The sign-in and sign-up interfaces are present, but JWT registration, login, token verification, and protected routes are not yet implemented. Notes and study materials are stored in browser `localStorage`; only class schedules are currently persisted through MongoDB.
 
-## Table of Contents
-
-- [Project Overview](#project-overview)
-- [Tech Stack](#tech-stack)
-- [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [Installation and Local Setup](#installation-and-local-setup)
-- [Environment Variables](#environment-variables)
-- [How It Works](#how-it-works)
-- [Development Guide](#development-guide)
-- [API Documentation](#api-documentation)
-- [Troubleshooting](#troubleshooting)
-- [Deployment](#deployment)
-- [Contributing](#contributing)
-
----
-
 ## Project Overview
 
 Finote helps students organize and review study material through the following features:
