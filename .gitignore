@@ -1,0 +1,10 @@
+/documents/
+/document/
+
+# Environment variables and secrets
+.env
+.env.*
+*.env
+*.pem
+*.key
+credentials.json
