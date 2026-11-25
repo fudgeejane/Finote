@@ -84,11 +84,11 @@ export default function NotebookModal({ mode, notebook, onClose, onSubmit, onDel
                             Cancel
                         </button>
                         {isDelete ? (
-                            <button type="button" onClick={onDelete} disabled={busy} className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm ${styles.buttonRed}`}>
+                            <button type="button" onClick={onDelete} disabled={busy} className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm ${styles.redBg2} ${styles.redBg2Hover}`}>
                                 Delete
                             </button>
                         ) : (
-                            <button type="submit" disabled={!title.trim() || busy} className={`rounded-md px-4 py-2 text-sm ${styles.buttonBlue}`}>
+                            <button type="submit" disabled={!title.trim() || busy} className={`rounded-lg px-4 py-2 text-sm ${styles.blueBg2} ${styles.blueBg2hover}`}>
                                 {isEdit ? "Save changes" : "Create notebook"}
                             </button>
                         )}

@@ -86,7 +86,7 @@ export default function Styling() {
 
     // Hovers
     primaryBgHover: darkMode ? 'hover:bg-[#1a1a1a]' : 'hover:bg-[#f0f0f0]',
-    secondaryBgHover: darkMode ? 'hover:bg-[#292929]' : 'hover:bg-[#f5f5f5]',
+    secondaryBgHover: darkMode ? 'hover:bg-[#292929] cursor-pointer' : 'hover:bg-[#f5f5f5] cursor-pointer',
     headerHover: darkMode ? 'hover:bg-[#2e2e2e]' : 'hover:bg-[#f5f5f5]',
 
     // Inputs
@@ -157,11 +157,17 @@ export default function Styling() {
       : 'shadow-[0_2px_6px_rgba(0,0,0,0.15)]',
 
     blueBg2hover: darkMode
-      ? 'hover:bg-blue-500/10 hover:border-blue-900'
-      : 'hover:bg-blue-200/50 hover:border-blue-300',
+      ? 'hover:bg-blue-500/10 hover:border-blue-900 cursor-pointer'
+      : 'hover:bg-blue-200/50 hover:border-blue-300 cursor-pointer',
     purpleBg2hover: darkMode
-      ? 'hover:bg-purple-500/10 hover:border-purple-900'
-      : 'hover:bg-purple-200/50 hover:border-purple-300',
+      ? 'hover:bg-purple-500/10 hover:border-purple-900 cursor-pointer'
+      : 'hover:bg-purple-200/50 hover:border-purple-300 cursor-pointer',
+    redBg2Hover: darkMode
+      ? 'hover:bg-red-500/30 hover:border-red-900 cursor-pointer'
+      : 'hover:bg-red-200/50 hover:border-red-300 cursor-pointer',
+    greenBg2Hover: darkMode
+      ? 'hover:bg-green-500/10 hover:border-green-900 cursor-pointer'
+      : 'hover:bg-green-200/50 hover:border-green-300 cursor-pointer',
 
     gamingBg: darkMode
       ? 'bg-gradient-to-r from-purple-700 via-blue-700 to-black/20'
