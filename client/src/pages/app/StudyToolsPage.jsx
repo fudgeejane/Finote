@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BookOpen, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Plus, X } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import Styling from "../../components/theme/Styling";
 import StudyToolsModal from "../../components/utils/StudyToolsModal";
+import { useAuth } from "../../auth/AuthContext";
+import { importLegacyNotes } from "../../api/legacyNotesMigration";
 import {
     EXAM_STORAGE_KEY,
     FLASHCARD_STORAGE_KEY,
-    NOTES_STORAGE_KEY,
     generateFlashcards,
     generateMockExam,
     readStoredItems,
@@ -147,16 +148,46 @@ function StudyMaterialViewer({ mode, item, onClose, styles }) {
 
 export default function StudyToolsPage() {
     const styles = Styling();
+    const { user, apiRequest } = useAuth();
     const [searchParams, setSearchParams] = useSearchParams();
     const activeTab = tabs.find((tab) => tab.id === searchParams.get("tab"))?.id || "flashcards";
     const isFlashcards = activeTab === "flashcards";
-    const [notes] = useState(() => readStoredItems(NOTES_STORAGE_KEY));
+    const [notes, setNotes] = useState([]);
+    const [notesLoading, setNotesLoading] = useState(true);
+    const [notesError, setNotesError] = useState("");
     const [decks, setDecks] = useState(() => readStoredItems(FLASHCARD_STORAGE_KEY));
     const [exams, setExams] = useState(() => readStoredItems(EXAM_STORAGE_KEY));
     const [modalOpen, setModalOpen] = useState(false);
     const [activeItem, setActiveItem] = useState(null);
     const materials = isFlashcards ? decks : exams;
     const ItemIcon = isFlashcards ? BookOpen : ClipboardCheck;
+
+    useEffect(() => {
+        let active = true;
+        const loadNotes = async () => {
+            setNotesLoading(true);
+            setNotesError("");
+            let migrationError = "";
+            try {
+                await importLegacyNotes(apiRequest, user?.id);
+            } catch (error) {
+                migrationError = error.message;
+            }
+            try {
+                const response = await apiRequest("/notes");
+                if (active) {
+                    setNotes(response.notes);
+                    if (migrationError) setNotesError(migrationError);
+                }
+            } catch (error) {
+                if (active) setNotesError(error.message);
+            } finally {
+                if (active) setNotesLoading(false);
+            }
+        };
+        loadNotes();
+        return () => { active = false; };
+    }, [apiRequest, user?.id]);
 
     const generateMaterial = async (configuration) => {
         if (isFlashcards) {
@@ -194,6 +225,7 @@ export default function StudyToolsPage() {
                     </div>
                     <button
                         type="button"
+                        disabled={notesLoading || !notes.length}
                         onClick={() => setModalOpen(true)}
                         className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium ${styles.buttonBlue}`}
                     >
@@ -202,6 +234,17 @@ export default function StudyToolsPage() {
                     </button>
                 </div>
             </header>
+
+            {notesError && (
+                <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600">
+                    {notesError}
+                </p>
+            )}
+            {!notesLoading && !notes.length && !notesError && (
+                <p className={`rounded-lg border px-4 py-3 text-sm ${styles.border} ${styles.secondaryText}`}>
+                    Create a note in one of your notebooks before generating study materials. <Link to="/home" className={styles.blueText}>Go to notebooks</Link>
+                </p>
+            )}
 
             <section aria-label="Study materials">
                 <div className={`flex gap-6 border-b ${styles.border}`} role="tablist" aria-label="Study tools">
@@ -262,6 +305,7 @@ export default function StudyToolsPage() {
                             </p>
                             <button
                                 type="button"
+                                disabled={notesLoading || !notes.length}
                                 onClick={() => setModalOpen(true)}
                                 className={`mt-5 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${styles.buttonBlue}`}
                             >

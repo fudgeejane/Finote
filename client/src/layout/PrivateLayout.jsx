@@ -145,7 +145,7 @@ export default function PrivateLayout() {
   const headerLinkClass = ({ isActive }) =>
     `flex px-4 py-2.5 items-center gap-2  px-3 text-xs font-medium whitespace-nowrap transition-colors duration-200 ${
       isActive
-        ? `${styles.sidebarActiveBg} ${styles.sidebarAccentText}`
+        ? `${styles.blueBg2} ${styles.blueText}`
         : `${styles.sidebarText} ${styles.secondaryBgHover} ${styles.sidebarTextHover}`
     }`;
   const filteredSearchItems = searchItems.filter(({ label, description }) =>
@@ -159,7 +159,7 @@ export default function PrivateLayout() {
     "Account";
 
   return (
-    <div className={`min-h-dvh ${styles.sidebarCanvasBg} ${styles.primaryText} ${styles.themeTransition}`}>
+     <div className={`flex min-h-dvh flex-col ${styles.sidebarCanvasBg} ${styles.primaryText} ${styles.themeTransition}`}>
       <header className={`sticky top-0 z-40 border-b ${styles.sidebarBg} ${styles.border} ${styles.themeTransition}`}>
         <div className="mx-auto flex min-h-16 max-w-7xl items-center justify-between gap-3 px-4 ">
           <div className="flex min-w-0 items-center gap-2 sm:gap-4">
@@ -258,18 +258,7 @@ export default function PrivateLayout() {
                   className={`absolute right-0 top-full z-50 mt-2 max-h-[calc(100dvh-5rem)] w-64 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border shadow-xl ${styles.border} ${styles.sidebarBg} ${styles.sidebarText} ${styles.themeTransition}`}
                 >
                   <div className="flex min-w-0 items-center gap-3 px-4 pt-4">
-                    {user?.profilePictureUrl ? (
-                      <img
-                        src={user.profilePictureUrl}
-                        alt=""
-                        className="h-10 w-10 shrink-0 rounded-full object-cover"
-                      />
-                    ) : (
-                      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white ${styles.sidebarAccentBg}`}>
-                        {(user?.firstName?.[0] || user?.email?.[0] || "U").toUpperCase()}
-                        {(user?.lastName?.[0] || "").toUpperCase()}
-                      </span>
-                    )}
+                    
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-semibold">{displayName}</span>
                       <span className={`block truncate text-xs ${styles.sidebarMutedText}`}>{user?.email}</span>
@@ -424,7 +413,7 @@ export default function PrivateLayout() {
           </section>
         </div>
       )}
-      <main className={`mx-auto min-h-[calc(100dvh-4rem)] min-w-0 w-full max-w-7xl p-4 sm:p-6 lg:p-8 ${styles.themeTransition}`}>
+      <main className={`mx-auto w-full min-w-0 max-w-7xl flex-1 p-4 sm:p-6 lg:p-8 ${styles.themeTransition}`}>        
         <Outlet />
       </main>
     </div>

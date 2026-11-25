@@ -3,6 +3,8 @@ require("dotenv").config();
 
 const AuthRoutes = require("./routes/AuthRoutes")
 const UserRoutes = require("./routes/UserRoutes");
+const NotebookRoutes = require("./routes/NotebookRoutes");
+const NoteRoutes = require("./routes/NoteRoutes");
 
 const express = require("express");
 const cors = require("cors");
@@ -69,6 +71,8 @@ async function startServer() {
 
 app.use("/api/auth", AuthRoutes);
 app.use("/api/users", UserRoutes);
+app.use("/api/notebooks", NotebookRoutes);
+app.use("/api/notes", NoteRoutes);
 
 app.use((error, req, res, next) => {
   if (error.type === "entity.parse.failed") {

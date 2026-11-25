@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Trash2, X } from "lucide-react";
 import Styling from "../theme/Styling";
 
-export default function NotebookModal({ mode, notebook, onClose, onSubmit, onDelete }) {
+export default function NotebookModal({ mode, notebook, onClose, onSubmit, onDelete, busy = false, error = "" }) {
     const styles = Styling();
     const [title, setTitle] = useState(mode === "edit" ? notebook?.title ?? "" : "");
 
@@ -44,6 +44,7 @@ export default function NotebookModal({ mode, notebook, onClose, onSubmit, onDel
                         <button
                             type="button"
                             onClick={onClose}
+                            disabled={busy}
                             aria-label="Close dialog"
                             className={`rounded-full p-1 ${styles.closeButton}`}
                         >
@@ -64,6 +65,7 @@ export default function NotebookModal({ mode, notebook, onClose, onSubmit, onDel
                                     autoFocus
                                     value={title}
                                     onChange={(event) => setTitle(event.target.value)}
+                                    maxLength={120}
                                     placeholder="Untitled Notebook"
                                     className={`mt-2 w-full rounded-lg border px-3 py-2.5 font-normal ${styles.input} ${styles.border}`}
                                 />
@@ -71,16 +73,22 @@ export default function NotebookModal({ mode, notebook, onClose, onSubmit, onDel
                         )}
                     </div>
 
+                    {error && (
+                        <p role="alert" className="mx-6 mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600">
+                            {error}
+                        </p>
+                    )}
+
                     <footer className="flex justify-end gap-2 px-6 py-5">
-                        <button type="button" onClick={onClose} className={`rounded-lg px-4 py-2 text-sm ${styles.buttonFrost}`}>
+                        <button type="button" onClick={onClose} disabled={busy} className={`rounded-lg px-4 py-2 text-sm ${styles.buttonFrost}`}>
                             Cancel
                         </button>
                         {isDelete ? (
-                            <button type="button" onClick={onDelete} className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm ${styles.buttonRed}`}>
+                            <button type="button" onClick={onDelete} disabled={busy} className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm ${styles.buttonRed}`}>
                                 Delete
                             </button>
                         ) : (
-                            <button type="submit" disabled={!title.trim()} className={`rounded-md px-4 py-2 text-sm ${styles.buttonBlue}`}>
+                            <button type="submit" disabled={!title.trim() || busy} className={`rounded-md px-4 py-2 text-sm ${styles.buttonBlue}`}>
                                 {isEdit ? "Save changes" : "Create notebook"}
                             </button>
                         )}

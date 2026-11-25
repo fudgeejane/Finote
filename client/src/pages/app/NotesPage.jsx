@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
     BookOpen,
     Bold,
@@ -17,7 +17,8 @@ import {
 } from "lucide-react";
 import Styling from "../../components/theme/Styling";
 import { useDarkMode } from "../../components/theme/DarkModeContext";
-import { NOTES_STORAGE_KEY, readStoredItems } from "../../components/utils/studyTools";
+import { useAuth } from "../../auth/AuthContext";
+import { importLegacyNotes } from "../../api/legacyNotesMigration";
 
 const typingInputTypes = new Set([
     "insertText",
@@ -38,19 +39,80 @@ const textFromHtml = (html) => {
 export default function NotesPage() {
     const styles = Styling();
     const { darkMode } = useDarkMode();
+    const { user, apiRequest } = useAuth();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const notebookId = searchParams.get("notebookId");
     const editorRef = useRef(null);
     const menuRef = useRef(null);
     const editorHistoryRef = useRef({});
-    const [notes, setNotes] = useState(() => readStoredItems(NOTES_STORAGE_KEY));
-    const [activeId, setActiveId] = useState(() => readStoredItems(NOTES_STORAGE_KEY)[0]?.id ?? null);
+    const dirtyNotesRef = useRef(new Set());
+    const noteVersionsRef = useRef({});
+    const notesRef = useRef([]);
+    const saveQueueRef = useRef(Promise.resolve());
+    const latestNoteRef = useRef(null);
+    const saveNoteRef = useRef(null);
+    const [notebook, setNotebook] = useState(null);
+    const [notes, setNotes] = useState([]);
+    const [activeId, setActiveId] = useState(null);
     const [query, setQuery] = useState("");
     const [deleteId, setDeleteId] = useState(null);
     const [menuId, setMenuId] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState("");
+    const [saveError, setSaveError] = useState("");
+    const [migrationError, setMigrationError] = useState("");
+
+    const replaceNotes = useCallback((updater) => {
+        setNotes((current) => {
+            const next = typeof updater === "function" ? updater(current) : updater;
+            notesRef.current = next;
+            return next;
+        });
+    }, []);
 
     useEffect(() => {
-        localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(notes));
-    }, [notes]);
+        let active = true;
+        setNotebook(null);
+        setNotes([]);
+        notesRef.current = [];
+        dirtyNotesRef.current.clear();
+        noteVersionsRef.current = {};
+        editorHistoryRef.current = {};
+        setActiveId(null);
+        setLoadError("");
+        setSaveError("");
+        setMigrationError("");
+        setLoading(true);
+
+        if (!notebookId) {
+            setLoading(false);
+            return () => { active = false; };
+        }
+
+        const loadNotebook = async () => {
+            try {
+                try {
+                    await importLegacyNotes(apiRequest, user?.id);
+                } catch (migrationError) {
+                    if (active) setMigrationError(migrationError.message);
+                }
+                const notebookResponse = await apiRequest(`/notebooks/${encodeURIComponent(notebookId)}`);
+                const notesResponse = await apiRequest(`/notes?notebookId=${encodeURIComponent(notebookId)}`);
+                if (!active) return;
+                setNotebook(notebookResponse.notebook);
+                notesRef.current = notesResponse.notes;
+                setNotes(notesResponse.notes);
+                setActiveId(notesResponse.notes[0]?.id ?? null);
+            } catch (error) {
+                if (active) setLoadError(error.message);
+            } finally {
+                if (active) setLoading(false);
+            }
+        };
+        loadNotebook();
+        return () => { active = false; };
+    }, [apiRequest, notebookId, user?.id]);
 
     useEffect(() => {
         if (menuId === null) return undefined;
@@ -68,10 +130,18 @@ export default function NotesPage() {
         };
     }, [menuId]);
 
-    const visibleNotes = notes.filter((note) =>
+    const notebookIsCurrent = Boolean(notebookId && notebook?.id === notebookId);
+    const currentNotes = notebookIsCurrent ? notes : [];
+    const visibleNotes = currentNotes.filter((note) =>
         `${note.title} ${textFromHtml(note.content)}`.toLowerCase().includes(query.toLowerCase())
     );
-    const activeNote = notes.find((note) => note.id === activeId) ?? null;
+    const activeNote = notebookIsCurrent
+        ? notes.find((note) => note.id === activeId) ?? null
+        : null;
+
+    useEffect(() => {
+        latestNoteRef.current = activeNote;
+    }, [activeNote]);
 
     useEffect(() => {
         if (
@@ -83,12 +153,57 @@ export default function NotesPage() {
         }
     }, [activeId, activeNote]);
 
+    const persistNote = useCallback((note) => {
+        if (!note || !dirtyNotesRef.current.has(note.id)) return Promise.resolve(true);
+        const version = noteVersionsRef.current[note.id];
+        const payload = { title: note.title, content: note.content };
+        const save = saveQueueRef.current.catch(() => {}).then(async () => {
+            if (noteVersionsRef.current[note.id] !== version) return;
+            const response = await apiRequest(`/notes/${encodeURIComponent(note.id)}`, {
+                method: "PATCH",
+                body: JSON.stringify(payload),
+            });
+            replaceNotes((current) => current.map((item) =>
+                item.id === note.id && noteVersionsRef.current[note.id] === version
+                    ? { ...item, updatedAt: response.note.updatedAt }
+                    : item
+            ));
+            if (noteVersionsRef.current[note.id] === version) {
+                dirtyNotesRef.current.delete(note.id);
+            }
+            setSaveError("");
+        });
+        saveQueueRef.current = save.then(() => true).catch((error) => {
+            setSaveError(error.message);
+            return false;
+        });
+        return saveQueueRef.current;
+    }, [apiRequest, replaceNotes]);
+
+    useEffect(() => {
+        saveNoteRef.current = persistNote;
+    }, [persistNote]);
+
+    useEffect(() => {
+        if (!activeNote || !dirtyNotesRef.current.has(activeNote.id)) return undefined;
+        const timeout = window.setTimeout(() => persistNote(activeNote), 650);
+        return () => window.clearTimeout(timeout);
+    }, [activeNote, persistNote]);
+
+    useEffect(() => () => {
+        const note = latestNoteRef.current;
+        if (note && dirtyNotesRef.current.has(note.id)) {
+            saveNoteRef.current?.(note);
+        }
+    }, [activeId, notebookId]);
+
     const updateActiveNote = (changes) => {
-        setNotes((current) =>
-            current.map((note) =>
-                note.id === activeId ? { ...note, ...changes, updated: "Just now" } : note
-            )
-        );
+        if (!activeId) return;
+        dirtyNotesRef.current.add(activeId);
+        noteVersionsRef.current[activeId] = (noteVersionsRef.current[activeId] || 0) + 1;
+        replaceNotes((current) => current.map((note) =>
+            note.id === activeId ? { ...note, ...changes } : note
+        ));
     };
 
     const recordEditorChange = (content, coalesceTyping = false) => {
@@ -143,27 +258,48 @@ export default function NotesPage() {
         updateActiveNote({ content });
     };
 
-    const createNote = () => {
-        const id = Date.now();
-        const note = {
-            id,
-            title: "Untitled note",
-            subject: "General",
-            content: "",
-            updated: "Just now",
-        };
-        editorHistoryRef.current[id] = { stack: [""], index: 0, lastInputAt: 0 };
-        setNotes((current) => [note, ...current]);
-        setActiveId(id);
-        setQuery("");
-        window.requestAnimationFrame(() => editorRef.current?.focus());
+    const createNote = async () => {
+        if (!notebook || loading) return;
+        setSaveError("");
+        try {
+            const response = await apiRequest("/notes", {
+                method: "POST",
+                body: JSON.stringify({
+                    notebookId: notebook.id,
+                    title: "Untitled note",
+                    content: "",
+                }),
+            });
+            const note = response.note;
+            replaceNotes((current) => [note, ...current]);
+            setActiveId(note.id);
+            setQuery("");
+            window.requestAnimationFrame(() => editorRef.current?.focus());
+        } catch (error) {
+            setSaveError(error.message);
+        }
     };
 
-    const deleteNote = () => {
-        const remaining = notes.filter((note) => note.id !== deleteId);
-        setNotes(remaining);
-        if (activeId === deleteId) setActiveId(remaining[0]?.id ?? null);
-        setDeleteId(null);
+    const deleteNote = async () => {
+        if (!deleteId) return;
+        setSaveError("");
+        try {
+            await apiRequest(`/notes/${encodeURIComponent(deleteId)}`, { method: "DELETE" });
+            const remaining = notesRef.current.filter((note) => note.id !== deleteId);
+            replaceNotes(remaining);
+            dirtyNotesRef.current.delete(deleteId);
+            delete noteVersionsRef.current[deleteId];
+            delete editorHistoryRef.current[deleteId];
+            if (activeId === deleteId) setActiveId(remaining[0]?.id ?? null);
+            setDeleteId(null);
+        } catch (error) {
+            setSaveError(error.message);
+        }
+    };
+
+    const openStudyTools = async (path) => {
+        if (activeNote && !(await persistNote(activeNote))) return;
+        navigate(path);
     };
 
     const applyFormat = (command, value = null) => {
@@ -244,12 +380,13 @@ export default function NotesPage() {
                 <aside className={`hidden min-h-0 flex-col border-b md:flex md:max-h-none md:border-b-0 md:border-r ${styles.border}`}>
                     <div className="flex items-center justify-between px-4 py-4">
                         <div>
-                            <h1 className={`text-lg font-semibold ${styles.primaryText}`}>My Notes</h1>
-                            <p className={`mt-0.5 text-xs ${styles.tertiaryText}`}>{notes.length} pages</p>
+                            <h1 className={`text-lg font-semibold ${styles.primaryText}`}>{notebookIsCurrent ? notebook.title : "My Notes"}</h1>
+                            <p className={`mt-0.5 text-xs ${styles.tertiaryText}`}>{currentNotes.length} notes</p>
                         </div>
                         <button
                             type="button"
                             onClick={createNote}
+                            disabled={!notebook || loading}
                             aria-label="Create a new note"
                             className={`flex h-9 w-9 items-center justify-center rounded-full ${styles.buttonBlue}`}
                         >
@@ -283,6 +420,7 @@ export default function NotesPage() {
                                     <button
                                         type="button"
                                         onClick={() => {
+                                            if (activeId !== note.id) persistNote(activeNote);
                                             setActiveId(note.id);
                                             setMenuId(null);
                                         }}
@@ -324,29 +462,70 @@ export default function NotesPage() {
                             </div>
                         ))}
                         {visibleNotes.length === 0 && (
-                            <p className={`px-3 py-8 text-center text-sm ${styles.tertiaryText}`}>No notes found</p>
+                            <p className={`px-3 py-8 text-center text-sm ${styles.tertiaryText}`}>
+                                {query ? "No notes found" : "This notebook has no notes yet"}
+                            </p>
                         )}
                     </nav>
                 </aside>
 
                 <main className="flex min-h-0 flex-col">
-                    {activeNote ? (
+                    {migrationError && (
+                        <p role="alert" className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-700">
+                            Existing browser-saved notes could not be imported: {migrationError}
+                        </p>
+                    )}
+                    {saveError && (
+                        <div role="alert" className="flex items-center justify-between gap-3 border-b border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-600">
+                            <span>{saveError}</span>
+                            {activeNote && (
+                                <button
+                                    type="button"
+                                    onClick={() => persistNote(activeNote)}
+                                    className="shrink-0 font-semibold underline"
+                                >
+                                    Retry save
+                                </button>
+                            )}
+                        </div>
+                    )}
+                    {loading ? (
+                        <div className="flex h-full items-center justify-center px-6 text-center">
+                            <p className={`text-sm ${styles.secondaryText}`}>Loading notebook…</p>
+                        </div>
+                    ) : loadError ? (
+                        <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+                            <h2 className={`font-serif text-2xl font-semibold ${styles.primaryText}`}>Could not open this notebook</h2>
+                            <p role="alert" className={`mt-2 text-sm ${styles.secondaryText}`}>{loadError}</p>
+                            <Link to="/home" className={`mt-5 rounded-lg px-4 py-2 text-sm ${styles.buttonBlue}`}>Back to notebooks</Link>
+                        </div>
+                    ) : !notebook ? (
+                        <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+                            <h2 className={`font-serif text-2xl font-semibold ${styles.primaryText}`}>Choose a notebook</h2>
+                            <p className={`mt-2 text-sm ${styles.secondaryText}`}>Open a notebook from Home to create and manage its notes.</p>
+                            <Link to="/home" className={`mt-5 rounded-lg px-4 py-2 text-sm ${styles.buttonBlue}`}>Go to Home</Link>
+                        </div>
+                    ) : activeNote ? (
                         <>
                             <header className={`flex flex-col gap-2 border-b px-3 py-2 sm:px-5 sm:py-3 md:flex-row md:items-center md:justify-between ${styles.border}`}>
                                 <div className="flex items-center gap-2 md:hidden">
                                     <select
                                         value={activeNote.id}
-                                        onChange={(event) => setActiveId(Number(event.target.value))}
+                                        onChange={(event) => {
+                                            persistNote(activeNote);
+                                            setActiveId(event.target.value);
+                                        }}
                                         className={`min-w-0 flex-1 rounded-md border px-2 py-2 text-xs ${styles.input} ${styles.border}`}
-                                        aria-label="Select note section"
+                                        aria-label="Select note"
                                     >
-                                        {notes.map((note) => (
+                                        {currentNotes.map((note) => (
                                             <option key={note.id} value={note.id}>{note.title || "Untitled note"}</option>
                                         ))}
                                     </select>
                                     <button
                                         type="button"
                                         onClick={createNote}
+                                        disabled={loading}
                                         aria-label="Create a new note"
                                         title="Create a new note"
                                         className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${styles.buttonBlue}`}
@@ -402,6 +581,8 @@ export default function NotesPage() {
                                 <input
                                     value={activeNote.title}
                                     onChange={(event) => updateActiveNote({ title: event.target.value })}
+                                    onBlur={() => persistNote(activeNote)}
+                                    maxLength={120}
                                     placeholder="Untitled note"
                                     aria-label="Note title"
                                     className={`w-full min-w-0 bg-transparent text-2xl font-serif font-semibold outline-none sm:text-3xl lg:text-4xl ${styles.primaryText}`}
@@ -413,6 +594,10 @@ export default function NotesPage() {
                                     suppressContentEditableWarning
                                     onInput={handleEditorInput}
                                     onKeyDown={handleEditorKeyDown}
+                                    onBlur={() => persistNote({
+                                        ...activeNote,
+                                        content: editorRef.current?.innerHTML ?? activeNote.content,
+                                    })}
                                     data-placeholder="Start writing..."
                                     aria-label="Note content"
                                     className={`note-editor ${darkMode ? "note-editor-dark" : "note-editor-light"} mt-6 min-h-[12rem] w-full min-w-0 max-w-full flex-1 bg-transparent text-base leading-7 outline-none ${styles.primaryText}`}
@@ -423,7 +608,7 @@ export default function NotesPage() {
                                 <div className="flex w-full gap-2 sm:w-auto">
                                     <button
                                         type="button"
-                                        onClick={() => navigate("/study-tools?tab=mock-exams")}
+                                        onClick={() => openStudyTools("/study-tools?tab=mock-exams")}
                                         className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 sm:flex-none sm:px-4 ${styles.border} ${styles.primaryText} ${styles.secondaryBgHover}`}
                                     >
                                         <ClipboardList className="h-4 w-4 text-blue-600" />
@@ -431,7 +616,7 @@ export default function NotesPage() {
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => navigate("/study-tools?tab=flashcards")}
+                                        onClick={() => openStudyTools("/study-tools?tab=flashcards")}
                                         className={`inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 sm:flex-none sm:px-4 ${styles.buttonBlue}`}
                                     >
                                         <BookOpen className="h-4 w-4" />
@@ -443,12 +628,12 @@ export default function NotesPage() {
                     ) : (
                         <div className="flex h-full items-center justify-center px-6 text-center">
                             <div>
-                                <h2 className={`font-serif text-2xl font-semibold ${styles.primaryText}`}>Create your first note</h2>
-                                <p className={`mt-2 text-sm ${styles.secondaryText}`}>A blank page is ready when you are.</p>
-                                <button type="button" onClick={createNote} className={`mt-5 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm ${styles.buttonBlue}`}>
+                                <h2 className={`font-serif text-2xl font-semibold ${styles.primaryText}`}>{query ? "No notes found" : "Create your first note"}</h2>
+                                <p className={`mt-2 text-sm ${styles.secondaryText}`}>{query ? "Try a different search." : "A blank page is ready when you are."}</p>
+                                {!query && <button type="button" onClick={createNote} className={`mt-5 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm ${styles.buttonBlue}`}>
                                     <BadgePlus className="h-4 w-4" />
                                     New note
-                                </button>
+                                </button>}
                             </div>
                         </div>
                     )}
