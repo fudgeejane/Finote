@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from "react";
 import { ChevronDown, Menu, X } from "lucide-react";
 import Styling from "../components/theme/Styling";
 import DarkModeToggle from "../components/theme/DarkModeToggle";
+import { useSearchParams } from "react-router-dom";
 import AuthModal from "../components/auth/AuthModal";
 
 const navs = [
@@ -24,6 +25,7 @@ export default function PublicLayout() {
     const { scrollYProgress } = useScroll();
     const scaleX = useSpring(scrollYProgress, { stiffness: 120, damping: 25 });
     const location = useLocation();
+    const [searchParams] = useSearchParams();
 
     const [helpOpen, setHelpOpen] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
@@ -61,6 +63,11 @@ export default function PublicLayout() {
     };
 
     const [authMode, setAuthMode] = useState(null);
+
+    useEffect(() => {
+        const auth = searchParams.get("auth");
+        if (auth === "signin" || auth === "signup") setAuthMode(auth);
+    }, [searchParams]);
 
     return (
         <div className={`min-h-dvh flex flex-col ${styles.primaryBg}`}>

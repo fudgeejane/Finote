@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import Styling from "../theme/Styling";
 
-export default function LoadingPage() {
+export default function LoadingPage({ persistent = false }) {
   const [visible, setVisible] = useState(true);
   const styles = Styling();
 
   useEffect(() => {
+    if (persistent) return undefined;
     const timeoutId = window.setTimeout(() => setVisible(false), 1500);
     return () => window.clearTimeout(timeoutId);
-  }, []);
+  }, [persistent]);
 
   if (!visible) return null;
 

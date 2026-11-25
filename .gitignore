@@ -1,5 +1,7 @@
 /documents/
 /document/
+/prompts/
+**/prompts/
 
 # Environment variables and secrets
 .env

@@ -16,6 +16,14 @@ const {
 
 const router = express.Router();
 
+function rateLimitHandler(message, windowMs) {
+  return (req, res) => {
+    const retryAfterSeconds = Math.ceil(windowMs / 1000);
+    res.set("Retry-After", String(retryAfterSeconds));
+    res.status(429).json({ error: message, retryAfterSeconds });
+  };
+}
+
 function validateEmail(req, res, next) {
   const body =
     req.body && typeof req.body === "object" && !Array.isArray(req.body)
@@ -42,11 +50,7 @@ const codeRequestByEmailLimiter = rateLimit({
       .digest("hex"),
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  handler: (req, res) => {
-    res.status(429).json({
-      error: "Too many code requests. Try again later.",
-    });
-  },
+  handler: rateLimitHandler("Too many code requests. Try again later.", 60 * 60 * 1000),
 });
 
 const codeRequestByIpLimiter = rateLimit({
@@ -54,11 +58,7 @@ const codeRequestByIpLimiter = rateLimit({
   limit: 30,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  handler: (req, res) => {
-    res.status(429).json({
-      error: "Too many requests. Try again later.",
-    });
-  },
+  handler: rateLimitHandler("Too many requests. Try again later.", 60 * 60 * 1000),
 });
 
 const loginLimiter = rateLimit({
@@ -66,6 +66,7 @@ const loginLimiter = rateLimit({
   limit: 10,
   standardHeaders: "draft-8",
   legacyHeaders: false,
+  handler: rateLimitHandler("Too many sign-in attempts. Try again later.", 15 * 60 * 1000),
 });
 
 const verificationByEmailLimiter = rateLimit({
@@ -79,11 +80,7 @@ const verificationByEmailLimiter = rateLimit({
   skipSuccessfulRequests: true,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  handler: (req, res) => {
-    res.status(429).json({
-      error: "Too many failed verification attempts. Request a new code later.",
-    });
-  },
+  handler: rateLimitHandler("Too many failed verification attempts. Request a new code later.", 15 * 60 * 1000),
 });
 
 const verificationByIpLimiter = rateLimit({
@@ -92,11 +89,7 @@ const verificationByIpLimiter = rateLimit({
   skipSuccessfulRequests: true,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  handler: (req, res) => {
-    res.status(429).json({
-      error: "Too many failed verification attempts. Try again later.",
-    });
-  },
+  handler: rateLimitHandler("Too many failed verification attempts. Try again later.", 15 * 60 * 1000),
 });
 
 const resetAttemptLimiter = rateLimit({
@@ -104,6 +97,7 @@ const resetAttemptLimiter = rateLimit({
   limit: 5,
   standardHeaders: "draft-8",
   legacyHeaders: false,
+  handler: rateLimitHandler("Too many reset attempts. Try again later.", 15 * 60 * 1000),
 });
 
 router.post(

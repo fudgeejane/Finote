@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import {
-  AlertTriangle,
   ChevronLeft,
   ChevronRight,
   Pencil,
   BadgePlus,
   X,
 } from "lucide-react";
+import toast from "react-hot-toast";
 import Styling from "../../components/theme/Styling";
 
 const STORAGE_KEY = "finote.student.schedule.v1";
@@ -143,7 +143,6 @@ export default function SchedulePage() {
   const currentDay = DAYS[(jsDay + 6) % 7]?.key;
   const [classes, setClasses] = useState(readLocalSchedule);
   const [modal, setModal] = useState(null);
-  const [notice, setNotice] = useState("");
   const [viewMode, setViewMode] = useState("Week");
   const [monthCursor, setMonthCursor] = useState(
     () => new Date(now.getFullYear(), now.getMonth(), 1),
@@ -178,11 +177,11 @@ export default function SchedulePage() {
 
   const saveClass = (item) => {
     if (!item.subject.trim() || !item.startTime || !item.endTime) {
-      setNotice("Subject and class times are required.");
+      toast.error("Subject and class times are required.");
       return;
     }
     if (minutes(item.endTime) <= minutes(item.startTime)) {
-      setNotice("End time must be after the start time.");
+      toast.error("End time must be after the start time.");
       return;
     }
     const overlap = item.days.some((day) =>
@@ -195,7 +194,7 @@ export default function SchedulePage() {
       ),
     );
     if (overlap) {
-      setNotice(
+      toast.error(
         "This overlaps with another class. Choose another time or day.",
       );
       return;
@@ -221,8 +220,8 @@ export default function SchedulePage() {
         body: JSON.stringify(saved),
       }).catch(() => {});
     }
-    setNotice("");
     setModal(null);
+    toast.success(item.id ? "Schedule updated." : "Schedule added.");
   };
 
   const gaps = [];
@@ -249,7 +248,6 @@ export default function SchedulePage() {
             <button
               type="button"
               onClick={() => {
-                setNotice("");
                 setModal({ mode: "edit", selectedId: null });
               }}
               className={`px-4 py-2 text-sm rounded-md ${styles.buttonFrost}`}
@@ -259,7 +257,6 @@ export default function SchedulePage() {
             <button
               type="button"
               onClick={() => {
-                setNotice("");
                 setModal({ ...EMPTY_CLASS });
               }}
               className={`px-4 py-2 text-sm rounded-md ${styles.buttonBlue}`}
@@ -539,19 +536,11 @@ export default function SchedulePage() {
         )}
       </section>
 
-      {notice && (
-        <div className="flex items-center gap-2 rounded-lg border border-amber-400/50 bg-amber-500/10 px-4 py-3 text-sm text-amber-700">
-          <AlertTriangle className="h-4 w-4" />
-          {notice}
-        </div>
-      )}
-
       {modal && (
         <ScheduleModal
           initial={modal}
           classes={classes}
           styles={styles}
-          notice={notice}
           onClose={() => setModal(null)}
           onSave={saveClass}
         />
@@ -560,7 +549,7 @@ export default function SchedulePage() {
   );
 }
 
-function ScheduleModal({ initial, classes, styles, notice, onClose, onSave }) {
+function ScheduleModal({ initial, classes, styles, onClose, onSave }) {
   const [step, setStep] = useState(initial.mode === "edit" ? "select" : "form");
   const [form, setForm] = useState(
     initial.selectedId
@@ -664,12 +653,6 @@ function ScheduleModal({ initial, classes, styles, notice, onClose, onSave }) {
             }}
             className="space-y-4 p-5"
           >
-            {notice && (
-              <div className="flex items-start gap-2 rounded-lg border border-red-400/50 bg-red-500/10 p-3 text-sm text-red-600">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                {notice}
-              </div>
-            )}
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
                 label="Course / subject name"

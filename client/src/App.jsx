@@ -15,6 +15,9 @@ import StudyToolsPage from "./pages/app/StudyToolsPage";
 import ProgressPage from "./pages/app/ProgressPage";
 import SettingsPage from "./pages/app/SettingsPage";
 import SchedulePage from "./pages/app/SchedulePage";
+import { PublicOnly, RequireUser } from "./auth/RouteGuards";
+import CompleteProfilePage from "./pages/app/CompleteProfilePage";
+import StatusPage from "./components/pages/StatusPage";
 
 export default function App() {
   return (
@@ -22,16 +25,17 @@ export default function App() {
       <Routes>
 
         { /* Publics Pages */}
+        <Route element={<PublicOnly />}>
         <Route element={<PublicLayout />}>
           <Route index element={<LandingPage />} />
           <Route path="terms-of-services" element={<TermsOfServicesPage />} />
           <Route path="privacy-policy" element={<PrivacyPolicyPage />} />
           <Route path="contact" element={<ContactPage />} />
         </Route>
+        </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
-
-        { /* Private Pages */}
+        <Route element={<RequireUser />}>
+        <Route path="complete-profile" element={<CompleteProfilePage />} />
         <Route element={<PrivateLayout />}>
           <Route path="home" element={<HomePage />} />
           <Route path="dashboard" element={<Navigate to="/home" replace />} />
@@ -43,6 +47,8 @@ export default function App() {
           <Route path="settings" element={<SettingsPage />} />
           <Route path="schedule" element={<SchedulePage />} />
         </Route>
+        </Route>
+        <Route path="*" element={<StatusPage type="notFound" />} />
       </Routes>
     </>
   )

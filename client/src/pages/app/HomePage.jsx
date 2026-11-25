@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import Styling from "../../components/theme/Styling";
 import NotebookModal from "../../components/utils/NotebookModal";
+import { useAuth } from "../../auth/AuthContext";
 
 const INITIAL_NOTEBOOKS = [
     { id: 1, title: "Biology", sections: 2, notes: 4 },
@@ -17,28 +18,29 @@ const INITIAL_NOTEBOOKS = [
     { id: 4, title: "History", sections: 2, notes: 4 },
 ];
 
-function NotebookCard({ notebook, styles, menuOpen, onToggleMenu, onEdit, onDelete }) {
+function NotebookCard({ notebook, styles, toneIndex, menuOpen, onToggleMenu, onEdit, onDelete }) {
+    const accent = styles.notebookAccentTones[toneIndex % styles.notebookAccentTones.length];
+
     return (
-        <article className={`group rounded-lg border transition ${styles.border} ${styles.secondaryBg} ${styles.secondaryBgHover}`}>
+        <article className={`group overflow-hidden rounded-xl border transition ${styles.border} ${styles.secondaryBg} ${styles.secondaryBgHover} ${styles.themeTransition}`}>
             <Link
                 to="/notes"
-                className={`relative flex h-32 flex-col justify-between overflow-hidden rounded-t-lg  p-4  ${styles.grayBg}`}
+                className={`relative flex h-24 flex-col justify-between overflow-hidden p-3.5 ${styles.notebookCardTones[toneIndex % styles.notebookCardTones.length]}`}
             >
-                <span className={`text-[10px] font-bold uppercase tracking-[0.14em] ${styles.tertiaryText}`}>
+                <span className={`text-[9px] font-bold uppercase tracking-[0.14em] ${accent.text}`}>
                     Notebook
                 </span>
-                <span className={`font-serif text-2xl font-semibold ${styles.primaryText}`}>
+                <span className={`font-serif text-xl font-semibold ${styles.primaryText}`}>
                     {notebook.title}
                 </span>
+                <span className={`absolute inset-x-0 bottom-0 h-0.5 ${accent.line}`} />
             </Link>
 
-            <div className="flex items-center justify-between px-4 py-2">
-                <div>
-                    <h3 className={`text-sm font-semibold ${styles.primaryText}`}>{notebook.title}</h3>
-                    <p className={`mt-1 text-xs ${styles.tertiaryText}`}>
-                        {notebook.sections} sections 
-                    </p>
-                </div>
+            <div className="flex items-center justify-between px-3.5 py-2">
+                <p className={`text-[11px] ${styles.secondaryText}`}>
+                    {notebook.sections} sections
+                </p>
+                <p className={`text-[10px] ${styles.tertiaryText}`}>Edited today</p>
                 <div className="relative">
                     <button
                     type="button"
@@ -72,8 +74,10 @@ export default function HomePage() {
     const [openMenuId, setOpenMenuId] = useState(null);
     const [modal, setModal] = useState(null);
     const styles = Styling();
+    const { user } = useAuth();
 
     const visibleNotebooks = notebooks;
+    const greetingName = user?.firstName || user?.email?.split("@")[0] || "there";
 
     function createNotebook(title) {
         setNotebooks((items) => [
@@ -103,25 +107,23 @@ export default function HomePage() {
     }
 
     return (
-        <div className="space-y-6 mx-auto max-w-7xl">
-            <section className={`flex items-start justify-between border-b ${styles.border} pb-8`}>
+        <div className={`mx-auto max-w-[1440px] space-y-6 ${styles.primaryText} ${styles.themeTransition}`}>
+            <section className="flex items-start justify-between pb-2">
                 <div>
-                    <p className={`text-[11px] font-bold uppercase tracking-[0.18em] ${styles.tertiaryText}`}>Your study space</p>
-                    <h1 className={`mt-3 font-serif text-4xl font-semibold ${styles.primaryText} sm:text-[44px]`}>
-                        Hello, Alex
+                    <p className={`text-[10px] font-bold uppercase tracking-[0.18em] ${styles.tertiaryText}`}>Your study space</p>
+                    <h1 className={`mt-2 font-serif text-3xl font-semibold sm:text-4xl ${styles.primaryText}`}>
+                        Hello, {greetingName}
                     </h1>
-                    <p className={`mt-2 text-sm ${styles.secondaryText}`}>Let’s make room for your next great idea.</p>
+                    <p className={`mt-1 text-sm ${styles.secondaryText}`}>Let’s make room for your next great idea.</p>
                 </div>
             </section>
 
-            <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
+            <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
                 <section className="min-w-0">
                     <div className="flex items-center justify-between gap-4">
-                        <div>
-                            <p className={`text-sm hidden sm:inline ${styles.secondaryText}`}>
-                                A place for every subject. A page for every thought.
-                            </p>
-                        </div>
+                        <p className={`hidden text-xs sm:block ${styles.secondaryText}`}>
+                            A place for every subject. A page for every thought.
+                        </p>
                         <button
                             type="button"
                             onClick={() => setModal({ mode: "create" })}
@@ -132,12 +134,13 @@ export default function HomePage() {
                         </button>
                     </div>
 
-                    <div className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-                        {visibleNotebooks.map((notebook) => (
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                        {visibleNotebooks.map((notebook, index) => (
                             <NotebookCard
                                 key={notebook.id}
                                 notebook={notebook}
                                 styles={styles}
+                                toneIndex={index}
                                 menuOpen={openMenuId === notebook.id}
                                 onToggleMenu={() => setOpenMenuId((id) => id === notebook.id ? null : notebook.id)}
                                 onEdit={() => {
@@ -150,13 +153,20 @@ export default function HomePage() {
                                 }}
                             />
                         ))}
+                        <button
+                            type="button"
+                            onClick={() => setModal({ mode: "create" })}
+                            className={`flex min-h-36 flex-col items-center justify-center gap-2 rounded-xl border border-dashed text-xs font-medium transition ${styles.border} ${styles.secondaryText} ${styles.secondaryBgHover}`}
+                        >
+                            <BadgePlus className="h-5 w-5" />
+                            Add notebook
+                        </button>
                     </div>
                 </section>
 
                 <aside className="space-y-2.5 lg:sticky lg:top-24">
                     
-                    <section className={`rounded-xl border p-4 ${styles.border} ${styles.secondaryBg}`}>
-                        {/* Header */}
+                    <section className={`rounded-xl border p-4 ${styles.border} ${styles.secondaryBg} ${styles.themeTransition}`}>
                         <div className="flex items-start justify-between">
                             <div>
                                 <p className={`text-xs font-semibold ${styles.secondaryText}`}>
@@ -174,7 +184,7 @@ export default function HomePage() {
                                 <Link to="/progress" className={`text-xs cursor-pointer ${styles.headerNavText}`}>
                                     View
                                 </Link>
-                                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100 text-orange-500">
+                                <span className={`flex h-10 w-10 items-center justify-center rounded-full ${styles.streakIconBg} ${styles.streakIconText}`}>
                                     <Flame className="h-5 w-5" fill="currentColor" />
                                 </span>
                             </div>
@@ -194,8 +204,8 @@ export default function HomePage() {
                             <div className="grid grid-cols-7 gap-2" aria-label="Seven day study streak">
                                 {["M", "T", "W", "T", "F", "S", "S"].map((day, index) => (
                                     <div key={`${day}-${index}`} className="flex flex-col items-center gap-1.5">
-                                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white shadow-sm">
-                                            ✓
+                                        <span aria-label={`${day} completed`} className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 shadow-sm">
+                                            <span className="sr-only">Completed</span>
                                         </span>
                                         <span className={`text-[10px] font-medium ${styles.tertiaryText}`}>
                                             {day}
@@ -204,29 +214,6 @@ export default function HomePage() {
                                 ))}
                             </div>
                         </div>
-                    </section>
-
-
-                    <section className={`rounded-lg border p-3 ${styles.border} ${styles.secondaryBg}`}>
-                        <h2 className={`px-2 pb-3 pt-1 text-xs font-bold uppercase tracking-[0.14em] ${styles.tertiaryText}`}>
-                            Quick open
-                        </h2>
-                        <nav className="space-y-1" aria-label="Quick open pages">
-                            {[
-                                { label: "My Notes", to: "/notes" },
-                                { label: "Study Tools", to: "/study-tools" },
-                                { label: "Learning Progress", to: "/progress" },
-                                { label: "Settings", to: "/settings" },
-                            ].map(({ label, to }) => (
-                                <Link
-                                    key={to}
-                                    to={to}
-                                    className={`flex items-center  px-4 py-1 text-sm font-medium transition ${styles.secondaryBg} ${styles.secondaryBgHover}`}
-                                >
-                                    <span className="flex-1">{label}</span>
-                                </Link>
-                            ))}
-                        </nav>
                     </section>
                 </aside>
             </div>

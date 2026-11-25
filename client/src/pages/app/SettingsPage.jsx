@@ -1,8 +1,64 @@
-import { useMemo, useState } from "react";
-import { ChevronRight, FileText, KeyRound, Search, Settings2, ShieldCheck, Trash2, User } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import {
+    AsYouType,
+    getCountries,
+    getCountryCallingCode,
+    parsePhoneNumberFromString,
+} from "libphonenumber-js";
+import { ChevronRight, FileText, KeyRound, Search, ShieldCheck, Trash2, Upload, User } from "lucide-react";
 import Styling from "../../components/theme/Styling";
-import DarkModeToggle from "../../components/theme/DarkModeToggle";
 import { privacySections, terms } from "../../data/legalContent";
+import { useAuth } from "../../auth/AuthContext";
+import toast from "react-hot-toast";
+
+const countryNames = new Intl.DisplayNames(["en"], { type: "region" });
+const countries = getCountries()
+    .map((code) => ({ code, name: countryNames.of(code) || code }))
+    .sort((left, right) => left.name.localeCompare(right.name));
+const countryCodesByName = new Map(
+    countries.flatMap(({ code, name }) => [
+        [name.toLocaleLowerCase("en"), code],
+        [code.toLocaleLowerCase("en"), code],
+    ]),
+);
+const namePattern = /^[\p{L}\p{M}]+(?:[ '\u2019-][\p{L}\p{M}]+)*$/u;
+const acceptedPictureTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const addressFields = [
+    ["houseBuildingNumber", "House/building number"],
+    ["street", "Street"],
+    ["barangay", "Barangay"],
+    ["cityMunicipality", "City / municipality"],
+    ["province", "Province"],
+    ["postalCode", "Postal code"],
+];
+
+function getCountryCode(country) {
+    return countryCodesByName.get(String(country || "").trim().toLocaleLowerCase("en"));
+}
+
+function getInitialProfile(user) {
+    const phone = user?.contactNumber || "";
+    const parsedPhone = parsePhoneNumberFromString(phone, "PH");
+    const country = parsedPhone?.country || getCountryCode(user?.address?.country) || "PH";
+    return {
+        firstName: user?.firstName || "",
+        middleName: user?.middleName || "",
+        lastName: user?.lastName || "",
+        dateOfBirth: user?.dateOfBirth || "",
+        gender: user?.gender || "",
+        phoneCountry: country,
+        phoneInput: parsedPhone?.formatNational() || phone,
+        address: {
+            houseBuildingNumber: user?.address?.houseBuildingNumber || "",
+            street: user?.address?.street || "",
+            barangay: user?.address?.barangay || "",
+            cityMunicipality: user?.address?.cityMunicipality || "",
+            province: user?.address?.province || "",
+            postalCode: user?.address?.postalCode || "",
+            country: user?.address?.country || "Philippines",
+        },
+    };
+}
 
 const settingsSections = [
     {
@@ -10,12 +66,6 @@ const settingsSections = [
         items: [
             { id: "profile", label: "Personal details", description: "Manage your profile information", icon: User },
             { id: "account-settings", label: "Account settings", description: "Password and account actions", icon: KeyRound },
-        ],
-    },
-    {
-        title: "Preferences",
-        items: [
-            { id: "preferences", label: "Preferences", description: "Appearance and study notifications", icon: Settings2 },
         ],
     },
     {
@@ -29,14 +79,16 @@ const settingsSections = [
 
 export default function SettingsPage() {
     const styles = Styling();
-    const [saved, setSaved] = useState(false);
+    const { user, apiRequest, setUser } = useAuth();
     const [activeSection, setActiveSection] = useState("profile");
     const [search, setSearch] = useState("");
-    const [profile, setProfile] = useState({ name: "Alex Morgan", email: "alex.morgan@example.com", institution: "Northview High School" });
-    const [preferences, setPreferences] = useState({ reminders: true, weekly: true, sound: false });
+    const [profile, setProfile] = useState(() => getInitialProfile(user));
+    const [savingProfile, setSavingProfile] = useState(false);
+    const [pictureBusy, setPictureBusy] = useState(false);
     const [passwords, setPasswords] = useState({ current: "", next: "", confirm: "" });
     const [accountMessage, setAccountMessage] = useState("");
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const pictureInputRef = useRef(null);
 
     const filteredSections = useMemo(() => settingsSections
         .map((section) => ({
@@ -61,9 +113,131 @@ export default function SettingsPage() {
             }
             : null;
 
-    const save = () => {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 1800);
+    const updateAddress = (key, value) => {
+        setProfile((current) => ({
+            ...current,
+            address: { ...current.address, [key]: value },
+        }));
+    };
+
+    const updateAddressCountry = (country) => {
+        const phoneCountry = getCountryCode(country) || "PH";
+        setProfile((current) => ({
+            ...current,
+            phoneCountry,
+            phoneInput: new AsYouType(phoneCountry).input(current.phoneInput),
+            address: {
+                houseBuildingNumber: "",
+                street: "",
+                barangay: "",
+                cityMunicipality: "",
+                province: "",
+                postalCode: "",
+                country,
+            },
+        }));
+    };
+
+    const saveProfile = async (event) => {
+        event.preventDefault();
+        const errors = [];
+        if (!profile.firstName.trim() || !namePattern.test(profile.firstName.trim())) {
+            errors.push("Enter a valid first name.");
+        }
+        if (!profile.lastName.trim() || !namePattern.test(profile.lastName.trim())) {
+            errors.push("Enter a valid last name.");
+        }
+        if (profile.middleName.trim() && !namePattern.test(profile.middleName.trim())) {
+            errors.push("Enter a valid middle name.");
+        }
+        const parsedPhone = parsePhoneNumberFromString(profile.phoneInput, profile.phoneCountry);
+        if (!profile.phoneInput.trim() || !parsedPhone?.isValid()) {
+            errors.push("Enter a valid mobile number for the selected country.");
+        }
+        const hasAddressDetails = Object.entries(profile.address).some(
+            ([field, value]) => field !== "country" && value.trim(),
+        );
+        if (
+            hasAddressDetails &&
+            ["street", "cityMunicipality", "province", "country"].some(
+                (field) => !profile.address[field].trim(),
+            )
+        ) {
+            errors.push("Complete the street, city, province, and country for your address.");
+        }
+        if (errors.length) {
+            toast.error(errors[0]);
+            return;
+        }
+
+        setSavingProfile(true);
+        try {
+            const response = await apiRequest("/users/complete-profile", {
+                method: "PUT",
+                body: JSON.stringify({
+                    profileType: user?.profileType || "student",
+                    firstName: profile.firstName,
+                    middleName: profile.middleName,
+                    lastName: profile.lastName,
+                    dateOfBirth: profile.dateOfBirth,
+                    gender: profile.gender,
+                    contactNumber: parsedPhone.number,
+                    address: profile.address,
+                }),
+            });
+            setUser((current) => ({ ...current, ...response.user }));
+            toast.success(response.message || "Personal details saved.");
+        } catch (error) {
+            toast.error(error.message);
+        } finally {
+            setSavingProfile(false);
+        }
+    };
+
+    const uploadProfilePicture = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+        if (!file) return;
+
+        if (!acceptedPictureTypes.has(file.type) || file.size > 5 * 1024 * 1024) {
+            toast.error("Choose a JPEG, PNG, or WebP image up to 5 MB.");
+            return;
+        }
+
+        setPictureBusy(true);
+        try {
+            const body = new FormData();
+            body.append("profilePicture", file);
+            const response = await apiRequest("/users/profile-picture", {
+                method: "POST",
+                body,
+            });
+            setUser((current) => ({ ...current, ...response.user }));
+            toast.success(response.message || "Profile picture updated.");
+            if (response.warning) toast.error(response.warning);
+        } catch (error) {
+            toast.error(error.message || "Could not update your profile picture.");
+        } finally {
+            setPictureBusy(false);
+        }
+    };
+
+    const removeProfilePicture = async () => {
+        if (!user?.profilePictureUrl || pictureBusy) return;
+        if (!window.confirm("Remove your profile picture?")) return;
+
+        setPictureBusy(true);
+        try {
+            const response = await apiRequest("/users/profile-picture", {
+                method: "DELETE",
+            });
+            setUser((current) => ({ ...current, ...response.user }));
+            toast.success(response.message || "Profile picture removed.");
+        } catch (error) {
+            toast.error(error.message || "Could not remove your profile picture.");
+        } finally {
+            setPictureBusy(false);
+        }
     };
 
     const previewPasswordChange = (event) => {
@@ -81,14 +255,8 @@ export default function SettingsPage() {
             <header>
                 <p className={`text-xs font-medium uppercase tracking-[0.12em] ${styles.tertiaryText}`}>Account</p>
                 <h1 className="mt-2 text-3xl font-semibold">Settings &amp; privacy</h1>
-                <p className={`mt-2 text-sm ${styles.secondaryText}`}>Manage your account, preferences, and support information.</p>
+                <p className={`mt-2 text-sm ${styles.secondaryText}`}>Manage your personal information, account access, and support information.</p>
             </header>
-
-            {saved && (
-                <div role="status" className="rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-600">
-                    Your settings have been saved.
-                </div>
-            )}
 
             <div className="grid items-start gap-2.5 lg:grid-cols-[300px_minmax(0,1fr)]">
                 <aside className={`rounded-lg border p-3 sm:p-4 ${styles.border} ${styles.secondaryBg}`}>
@@ -165,39 +333,196 @@ export default function SettingsPage() {
                     ) : (
                         <>
                             {activeSection === "profile" && (
-                                <>
-                                    <div className="flex items-center gap-3">
-                                        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white">
-                                            <User className="h-6 w-6" aria-hidden="true" />
-                                        </span>
-                                        <div>
-                                            <h3 className="font-semibold">Account information</h3>
-                                            <p className={`text-xs ${styles.secondaryText}`}>Personal profile details</p>
-                                        </div>
-                                    </div>
-                                    <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                                        {[
-                                            { key: "name", label: "Full name" },
-                                            { key: "email", label: "Email address", type: "email" },
-                                            { key: "institution", label: "School or institution" },
-                                        ].map((field) => (
-                                            <label key={field.key} className={`text-sm font-medium ${styles.primaryText}`}>
-                                                {field.label}
+                                <form onSubmit={saveProfile} className="space-y-7">
+                                    <section aria-labelledby="personal-details-heading">
+                                        <div className="flex items-center gap-3">
+                                            {user?.profilePictureUrl ? (
+                                                <img src={user.profilePictureUrl} alt="" className="h-14 w-14 shrink-0 rounded-full object-cover" />
+                                            ) : (
+                                                <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${styles.blueBg2} ${styles.blueText}`}>
+                                                    {(user?.firstName?.[0] || user?.email?.[0] || "U").toUpperCase()}
+                                                    {(user?.lastName?.[0] || "").toUpperCase()}
+                                                </span>
+                                            )}
+                                            <div className="min-w-0">
+                                                <h3 id="personal-details-heading" className="truncate font-semibold">
+                                                    {[user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.email || "Personal information"}
+                                                </h3>
+                                                <p className={`truncate text-xs ${styles.secondaryText}`}>{user?.email}</p>
                                                 <input
-                                                    type={field.type || "text"}
-                                                    value={profile[field.key]}
-                                                    onChange={(event) => setProfile({ ...profile, [field.key]: event.target.value })}
-                                                    className={`mt-2 w-full rounded-lg border px-3 py-2.5 text-sm ${styles.input} ${styles.border}`}
+                                                    ref={pictureInputRef}
+                                                    type="file"
+                                                    accept="image/jpeg,image/png,image/webp"
+                                                    onChange={uploadProfilePicture}
+                                                    disabled={pictureBusy}
+                                                    className="sr-only"
+                                                />
+                                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => pictureInputRef.current?.click()}
+                                                        disabled={pictureBusy}
+                                                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${styles.buttonFrost}`}
+                                                    >
+                                                        <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                                                        {pictureBusy ? "Updating photo…" : user?.profilePictureUrl ? "Change photo" : "Upload photo"}
+                                                    </button>
+                                                    {user?.profilePictureUrl && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={removeProfilePicture}
+                                                            disabled={pictureBusy}
+                                                            className={`rounded-full px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-60 ${styles.redText} hover:bg-red-500/10`}
+                                                        >
+                                                            Remove
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <p className={`ml-[4.25rem] mt-1 text-[11px] ${styles.secondaryText}`}>
+                                            JPEG, PNG, or WebP; up to 5 MB.
+                                        </p>
+                                        <p className={`mt-4 text-sm ${styles.secondaryText}`}>Update your personal information, contact details, and address.</p>
+                                        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                                            {[
+                                                { key: "firstName", label: "First name", required: true },
+                                                { key: "middleName", label: "Middle name" },
+                                                { key: "lastName", label: "Last name", required: true },
+                                            ].map(({ key, label, required }) => (
+                                                <label key={key} className={`text-sm font-medium ${styles.primaryText}`}>
+                                                    {label}{required && " *"}
+                                                    <input
+                                                        value={profile[key]}
+                                                        onChange={(event) => setProfile((current) => ({ ...current, [key]: event.target.value }))}
+                                                        required={required}
+                                                        maxLength={80}
+                                                        className={`mt-1.5 w-full rounded-lg border px-3 py-2.5 text-sm ${styles.input} ${styles.border}`}
+                                                    />
+                                                </label>
+                                            ))}
+                                            <label className={`text-sm font-medium ${styles.primaryText}`}>
+                                                Date of birth
+                                                <input
+                                                    type="date"
+                                                    value={profile.dateOfBirth}
+                                                    max={new Date().toISOString().slice(0, 10)}
+                                                    onChange={(event) => setProfile((current) => ({ ...current, dateOfBirth: event.target.value }))}
+                                                    className={`mt-1.5 w-full rounded-lg border px-3 py-2.5 text-sm ${styles.input} ${styles.border}`}
                                                 />
                                             </label>
-                                        ))}
-                                    </div>
-                                    <div className="mt-6 flex justify-end">
-                                        <button type="button" onClick={save} className={`rounded-lg px-5 py-2.5 text-sm font-semibold ${styles.buttonBlue}`}>
-                                            Save Changes
+                                            <label className={`text-sm font-medium ${styles.primaryText}`}>
+                                                Gender
+                                                <select
+                                                    value={profile.gender}
+                                                    onChange={(event) => setProfile((current) => ({ ...current, gender: event.target.value }))}
+                                                    className={`mt-1.5 w-full rounded-lg border px-3 py-2.5 text-sm ${styles.input} ${styles.border}`}
+                                                >
+                                                    <option value="">Select an option</option>
+                                                    <option value="male">Male</option>
+                                                    <option value="female">Female</option>
+                                                    <option value="prefer_not_to_say">Prefer not to say</option>
+                                                </select>
+                                            </label>
+                                        </div>
+                                    </section>
+
+                                    <section aria-labelledby="contact-details-heading" className={`border-t pt-6 ${styles.border}`}>
+                                        <h3 id="contact-details-heading" className="font-semibold">Contact information</h3>
+                                        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                                            <label className={`text-sm font-medium ${styles.primaryText}`}>
+                                                Email address
+                                                <input
+                                                    type="email"
+                                                    value={user?.email || ""}
+                                                    disabled
+                                                    className={`mt-1.5 w-full rounded-lg border px-3 py-2.5 text-sm opacity-70 ${styles.input} ${styles.border}`}
+                                                />
+                                                <span className={`mt-1 block text-xs ${styles.secondaryText}`}>Email cannot be changed here.</span>
+                                            </label>
+                                            <div>
+                                                <label className={`text-sm font-medium ${styles.primaryText}`} htmlFor="settings-mobile-number">
+                                                    Mobile number *
+                                                </label>
+                                                <div className="mt-1.5 grid gap-2 sm:grid-cols-[minmax(0,1fr)_1.3fr]">
+                                                    <select
+                                                        value={profile.phoneCountry}
+                                                        aria-label="Phone country code"
+                                                        onChange={(event) => {
+                                                            const phoneCountry = event.target.value;
+                                                            setProfile((current) => ({
+                                                                ...current,
+                                                                phoneCountry,
+                                                                phoneInput: new AsYouType(phoneCountry).input(current.phoneInput),
+                                                            }));
+                                                        }}
+                                                        className={`w-full rounded-lg border px-3 py-2.5 text-sm ${styles.input} ${styles.border}`}
+                                                    >
+                                                        {countries.map(({ code, name }) => (
+                                                            <option key={code} value={code}>
+                                                                {name} (+{getCountryCallingCode(code)})
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    <input
+                                                        id="settings-mobile-number"
+                                                        type="tel"
+                                                        inputMode="tel"
+                                                        value={profile.phoneInput}
+                                                        onChange={(event) => setProfile((current) => ({
+                                                            ...current,
+                                                            phoneInput: new AsYouType(current.phoneCountry).input(event.target.value),
+                                                        }))}
+                                                        required
+                                                        className={`w-full rounded-lg border px-3 py-2.5 text-sm ${styles.input} ${styles.border}`}
+                                                    />
+                                                </div>
+                                                <span className={`mt-1 block text-xs ${styles.secondaryText}`}>Number formatting follows the selected country.</span>
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    <section aria-labelledby="address-details-heading" className={`border-t pt-6 ${styles.border}`}>
+                                        <h3 id="address-details-heading" className="font-semibold">Address</h3>
+                                        <p className={`mt-1 text-xs ${styles.secondaryText}`}>Optional. If you add an address, complete the street, city, province, and country.</p>
+                                        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                                            <label className={`text-sm font-medium sm:col-span-2 ${styles.primaryText}`}>
+                                                Country
+                                                <select
+                                                    value={profile.address.country}
+                                                    onChange={(event) => updateAddressCountry(event.target.value)}
+                                                    className={`mt-1.5 w-full rounded-lg border px-3 py-2.5 text-sm ${styles.input} ${styles.border}`}
+                                                >
+                                                    <option value="">Select a country</option>
+                                                    {countries.map(({ code, name }) => (
+                                                        <option key={code} value={name}>{name}</option>
+                                                    ))}
+                                                </select>
+                                            </label>
+                                            {addressFields.map(([key, label]) => (
+                                                <label key={key} className={`text-sm font-medium ${styles.primaryText}`}>
+                                                    {label}
+                                                    <input
+                                                        value={profile.address[key]}
+                                                        maxLength={key === "postalCode" ? 20 : 120}
+                                                        onChange={(event) => updateAddress(key, event.target.value)}
+                                                        className={`mt-1.5 w-full rounded-lg border px-3 py-2.5 text-sm ${styles.input} ${styles.border}`}
+                                                    />
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </section>
+
+                                    <div className="flex justify-end border-t pt-5">
+                                        <button
+                                            type="submit"
+                                            disabled={savingProfile}
+                                            className={`rounded-lg px-5 py-2.5 text-sm font-semibold disabled:opacity-60 ${styles.buttonBlue}`}
+                                        >
+                                            {savingProfile ? "Saving…" : "Save Changes"}
                                         </button>
                                     </div>
-                                </>
+                                </form>
                             )}
 
                             {activeSection === "account-settings" && (
@@ -266,43 +591,6 @@ export default function SettingsPage() {
                                 </div>
                             )}
 
-                            {activeSection === "preferences" && (
-                                <>
-                                    <h3 className="font-semibold">Application preferences</h3>
-                                    <div className={`mt-3 divide-y ${styles.divide}`}>
-                                        <div className="flex items-center justify-between gap-4 py-4">
-                                            <div>
-                                                <p className="text-sm font-medium">Appearance</p>
-                                                <p className={`text-xs ${styles.secondaryText}`}>Switch between light and dark themes</p>
-                                            </div>
-                                            <DarkModeToggle />
-                                        </div>
-                                        {[
-                                            ["reminders", "Study reminders", "Receive reminders for scheduled study sessions"],
-                                            ["weekly", "Weekly progress report", "Get a summary of your learning each week"],
-                                            ["sound", "Study timer sounds", "Play a sound when a timer finishes"],
-                                        ].map(([key, label, description]) => (
-                                            <label key={key} className="flex cursor-pointer items-center justify-between gap-4 py-4">
-                                                <span>
-                                                    <span className="block text-sm font-medium">{label}</span>
-                                                    <span className={`block text-xs ${styles.secondaryText}`}>{description}</span>
-                                                </span>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={preferences[key]}
-                                                    onChange={(event) => setPreferences({ ...preferences, [key]: event.target.checked })}
-                                                    className="h-4 w-4 accent-blue-600"
-                                                />
-                                            </label>
-                                        ))}
-                                    </div>
-                                    <div className="mt-6 flex justify-end">
-                                        <button type="button" onClick={save} className={`rounded-lg px-5 py-2.5 text-sm font-semibold ${styles.buttonBlue}`}>
-                                            Save Changes
-                                        </button>
-                                    </div>
-                                </>
-                            )}
                         </>
                     )}
                 </section>

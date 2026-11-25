@@ -5,6 +5,7 @@ const btnBase = 'cursor-pointer disabled:cursor-not-allowed text-white';
 
 // Same in both modes: written once, spread into both
 const shared = {
+  themeTransition: 'transition-colors duration-300 ease-in-out',
   blueGradient: 'bg-gradient-to-r from-[#161647] to-[#1d1d63]',
   greenText: 'text-green-500',
   orangeText: 'text-orange-400',
@@ -15,9 +16,44 @@ const shared = {
 const lightStyles = {
   ...shared,
 
+  // Complete profile form tokens
+  profileErrorText: 'text-red-700',
+  profileErrorBg: 'bg-red-50',
+  profileFocus: 'focus:border-blue-600 focus:ring-2 focus:ring-blue-600/25',
+  profileDisabled: 'disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500',
+  profileGhostButton: 'cursor-pointer rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-50',
+  profileSurfaceShadow: 'shadow-[0_8px_30px_rgba(15,23,42,0.08)]',
+  profileInputBorder: 'border-gray-300 hover:border-gray-400',
+  profileAvatarBg: 'bg-blue-50',
+
   // Backgrounds
   primaryBg: 'bg-[#F3f3f3]',
   secondaryBg: 'bg-[#FFFFFF]',
+  sidebarCanvasBg: 'bg-[#F3F4FA]',
+  sidebarBg: 'bg-[#FAFAFD]',
+  sidebarActiveBg: 'bg-[#E9E9FF]',
+  sidebarText: 'text-[#20243A]',
+  sidebarMutedText: 'text-[#747B91]',
+  sidebarAccentText: 'text-[#4F46E5]',
+  sidebarAccentBg: 'bg-[#5146E8]',
+  sidebarTextHover: 'hover:text-[#20243A]',
+  sidebarMutedHover: 'hover:text-[#747B91]',
+  sidebarActiveHover: 'hover:bg-[#E9E9FF]',
+  sidebarIndicatorRing: 'ring-[#FAFAFD]',
+  notebookCardTones: [
+    'bg-gradient-to-br from-emerald-50 via-emerald-100 to-white',
+    'bg-gradient-to-br from-blue-50 via-indigo-100 to-white',
+    'bg-gradient-to-br from-purple-50 via-violet-100 to-white',
+    'bg-gradient-to-br from-amber-50 via-yellow-100 to-white',
+  ],
+  notebookAccentTones: [
+    { text: 'text-emerald-700', line: 'bg-emerald-500' },
+    { text: 'text-blue-700', line: 'bg-blue-500' },
+    { text: 'text-violet-700', line: 'bg-violet-500' },
+    { text: 'text-amber-700', line: 'bg-amber-500' },
+  ],
+  streakIconBg: 'bg-orange-100',
+  streakIconText: 'text-orange-500',
   headerBg:
     'bg-white/20 backdrop-blur-xl border-b border-black/5 shadow-[0_8px_32px_rgba(15,23,42,0.08)]',
   headerNavText: 'text-gray-600 hover:text-blue-700',
@@ -44,6 +80,14 @@ const lightStyles = {
   // Tabs
   tabHover: 'hover:bg-blue-100 text-gray-700',
   activeTab: 'font-semibold border-b-2 border-blue-600 bg-blue-200/70 text-blue-700',
+
+  stepTrack: 'bg-gray-300',
+  stepProgress: 'bg-blue-600',
+  stepComplete: 'border-blue-600 bg-blue-600 text-white',
+  stepCurrent: 'border-blue-600 bg-blue-600 text-white',
+  stepUpcoming: 'border-gray-300 bg-gray-300 text-gray-700',
+  stepLabel: 'text-gray-600',
+  stepLabelActive: 'text-gray-900',
 
   // Buttons
   buttonBlue: `${btnBase} disabled:opacity-50 bg-blue-600 hover:bg-blue-500`,
@@ -105,9 +149,44 @@ const lightStyles = {
 const darkStyles = {
   ...shared,
 
+  // Complete profile form tokens
+  profileErrorText: 'text-red-300',
+  profileErrorBg: 'bg-red-950/40',
+  profileFocus: 'focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30',
+  profileDisabled: 'disabled:cursor-not-allowed disabled:bg-gray-800 disabled:text-gray-400',
+  profileGhostButton: 'cursor-pointer rounded-lg border border-gray-600 bg-gray-800 text-gray-100 hover:bg-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 disabled:cursor-not-allowed disabled:opacity-50',
+  profileSurfaceShadow: 'shadow-[0_8px_30px_rgba(0,0,0,0.3)]',
+  profileInputBorder: 'border-gray-600 hover:border-gray-500',
+  profileAvatarBg: 'bg-blue-950/50',
+
   // Backgrounds
   primaryBg: 'bg-[#1c1c1c]',
   secondaryBg: 'bg-[#1E1E1E]',
+  sidebarCanvasBg: 'bg-[#090A0F]',
+  sidebarBg: 'bg-[#12141B]',
+  sidebarActiveBg: 'bg-[#242642]',
+  sidebarText: 'text-[#E7E9F2]',
+  sidebarMutedText: 'text-[#979DAF]',
+  sidebarAccentText: 'text-[#C4C2FF]',
+  sidebarAccentBg: 'bg-[#5549ED]',
+  sidebarTextHover: 'hover:text-[#E7E9F2]',
+  sidebarMutedHover: 'hover:text-[#979DAF]',
+  sidebarActiveHover: 'hover:bg-[#242642]',
+  sidebarIndicatorRing: 'ring-[#12141B]',
+  notebookCardTones: [
+    'bg-gradient-to-br from-[#1d302d] via-[#1b2725] to-[#1E1E1E]',
+    'bg-gradient-to-br from-[#202a50] via-[#1b2138] to-[#1E1E1E]',
+    'bg-gradient-to-br from-[#30253c] via-[#261f31] to-[#1E1E1E]',
+    'bg-gradient-to-br from-[#332c1e] via-[#29251e] to-[#1E1E1E]',
+  ],
+  notebookAccentTones: [
+    { text: 'text-emerald-400', line: 'bg-emerald-400' },
+    { text: 'text-blue-400', line: 'bg-blue-400' },
+    { text: 'text-violet-400', line: 'bg-violet-400' },
+    { text: 'text-amber-400', line: 'bg-amber-400' },
+  ],
+  streakIconBg: 'bg-orange-950/60',
+  streakIconText: 'text-orange-400',
   headerBg:
     'bg-[#121212]/20 backdrop-blur-xl border-b border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.3)]',
   headerNavText: 'text-gray-300 hover:text-blue-400',
@@ -134,6 +213,14 @@ const darkStyles = {
   // Tabs
   tabHover: 'hover:bg-gray-700 text-gray-100',
   activeTab: 'font-semibold border-b-2 border-blue-400 bg-gray-800 text-gray-100',
+
+  stepTrack: 'bg-gray-700',
+  stepProgress: 'bg-blue-500',
+  stepComplete: 'border-blue-600 bg-blue-600 text-white',
+  stepCurrent: 'border-blue-500 bg-blue-500 text-white',
+  stepUpcoming: 'border-gray-700 bg-gray-700 text-gray-300',
+  stepLabel: 'text-gray-400',
+  stepLabelActive: 'text-gray-100',
 
   // Buttons
   buttonBlue: `${btnBase} disabled:opacity-50 bg-blue-700 hover:bg-blue-800`,

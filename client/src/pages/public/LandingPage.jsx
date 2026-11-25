@@ -115,23 +115,20 @@ export default function LandingPage() {
                     <h1
                         className={`mb-8 text-xl sm:text-2xl md:text-3xl lg:text-5xl font-medium ${styles.blueText}`}
                     >
-                        How      Does <span className="font-serif italic">Finote Works?</span>
+                        What is <span className="font-serif italic">Finote?</span>
                     </h1>
                     <p className="mb-4 text-sm sm:text-lg">
-                        Finote is a simple and user-friendly note-taking application designed to help users
-                        organize their thoughts, ideas, and important information in one place. It provides
-                        a convenient way to create, edit, and manage notes anytime.
+                        <span className={`italic font-medium font-serif ${styles.blueText}`}>Finote </span>
+                        is an all-in-one academic platform designed to help students manage their academic 
+                        needs in one centralized space. It allows students to organize and access their notes, 
+                        class schedules, and other learning materials without switching between different platforms.
                     </p>
                     <p className="mb-4 text-sm sm:text-lg">
-                        With Finote, users can keep their notes organized, save important reminders, and
-                        easily access their information whenever needed. Its goal is to make note-taking 
-                        easier, faster, and more efficient.
-                    </p>
-                    <p className="text-sm sm:text-lg">
-                        <span className={`${styles.blueText} italic`}>
-                            Why Choose <span className="font-serif">Finote? </span>
-                        </span>
-                        Finote offers a convenient way to keep important information in one place. With its simple design and easy-to-use features, users can focus on their ideas without unnecessary complications.
+                        More than just a note-organizing tool, {` `}
+                        <span className={`italic font-medium font-serif ${styles.blueText}`}>Finote </span>
+                        also provides features such as mock exams and flashcard creation to help students review 
+                        lessons, test their knowledge, and prepare for examinations. Its goal is to make studying 
+                        more organized, convenient, and effective.
                     </p>
                 </div>
             </motion.section>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { LoaderCircle, X } from "lucide-react";
 import Styling from "../theme/Styling";
+import toast from "react-hot-toast";
 import { countStudyFacts, getNoteSections, QUESTION_TYPES } from "./studyTools";
 
 const templates = [
@@ -24,7 +25,6 @@ export default function StudyToolsModal({ mode, notes, onClose, onGenerate }) {
     const [selectedTypes, setSelectedTypes] = useState(["Multiple Choice", "True or False"]);
     const [questionCounts, setQuestionCounts] = useState({ "Multiple Choice": 5, "True or False": 5 });
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
 
     const selectedNotes = notes.filter((note) => selectedNoteIds.includes(note.id));
     const availableSections = useMemo(() => selectedNotes.flatMap((note) =>
@@ -80,7 +80,6 @@ export default function StudyToolsModal({ mode, notes, onClose, onGenerate }) {
     const submit = async (event) => {
         event.preventDefault();
         if (!canGenerate || loading) return;
-        setError("");
         setLoading(true);
         try {
             await new Promise((resolve) => window.setTimeout(resolve, 0));
@@ -91,7 +90,7 @@ export default function StudyToolsModal({ mode, notes, onClose, onGenerate }) {
                 questionCounts: Object.fromEntries(selectedTypes.map((type) => [type, Number(questionCounts[type]) || 0])),
             });
         } catch (generationError) {
-            setError(generationError.message || "Unable to generate your study material. Please try again.");
+            toast.error(generationError.message || "Unable to generate your study material. Please try again.");
             setLoading(false);
         }
     };
@@ -300,7 +299,6 @@ export default function StudyToolsModal({ mode, notes, onClose, onGenerate }) {
                                 The selected sections contain {factLimit} distinct facts. Reduce each question type to {factLimit} questions or select more note content.
                             </p>
                         )}
-                        {error && <p role="alert" className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600">{error}</p>}
                     </div>
 
                     <footer className={`p-4 border-t ${styles.border}`}>

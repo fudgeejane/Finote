@@ -176,6 +176,26 @@ test("registration, verification, login, refresh, and logout persist correctly",
   assert.equal(session.revokeReason, "logout");
 });
 
+test("login sends users with required contact details but unfinished setup to profile setup", async () => {
+  const password = "Test-password-123";
+  await User.create({
+    email: "profile-setup@example.test",
+    passwordHash: await bcrypt.hash(password, 12),
+    emailVerifiedAt: new Date(),
+    firstName: "Anne",
+    lastName: "Smith",
+    contactNumber: "+639171234567",
+  });
+
+  const login = await call(AuthController.login, {
+    email: "profile-setup@example.test",
+    password,
+  });
+
+  assert.equal(login.statusCode, 200);
+  assert.equal(login.body.user.profileComplete, false);
+});
+
 test("password reset verifies the code, changes the password, and revokes sessions", async () => {
   const email = "reset-flow@example.test";
   const user = await User.create({

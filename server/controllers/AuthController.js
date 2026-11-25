@@ -9,6 +9,7 @@ const {
   sendVerificationEmail,
   sendPasswordResetEmail,
 } = require("../services/EmailService");
+const { getProfileCompletionPercentage } = require("../services/ProfileCompletion");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const Session = require("../models/Session");
@@ -20,7 +21,9 @@ function getRefreshCookieName() {
 function getRefreshCookieOptions(expiresAt) {
   return {
     httpOnly: true,
-    secure: process.env.COOKIE_SECURE === "true",
+    secure:
+      process.env.COOKIE_SECURE === "true" ||
+      process.env.NODE_ENV === "production",
     sameSite: process.env.COOKIE_SAME_SITE || "lax",
     path: "/api/auth",
     ...(expiresAt ? { expires: expiresAt } : {}),
@@ -54,7 +57,9 @@ function publicUser(user) {
     firstName: user.firstName,
     lastName: user.lastName,
     emailVerified: Boolean(user.emailVerifiedAt),
-    profileComplete: Boolean(user.profileCompletedAt),
+    profileComplete:
+      getProfileCompletionPercentage(user) === 100 &&
+      Boolean(user.profileSetupCompleted),
   };
 }
 
@@ -292,7 +297,7 @@ async function refresh(req, res) {
   const refreshToken = req.cookies?.[getRefreshCookieName()];
 
   if (typeof refreshToken !== "string" || !refreshToken) {
-    return res.status(401).json({ error: "Refresh token is required." });
+    return res.status(204).end();
   }
 
   try {

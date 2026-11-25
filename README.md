@@ -1,9 +1,9 @@
 # Finote Developer Documentation
 
-Finote is a student study workspace that combines note-taking, class scheduling, flashcards, mock exams, and learning-progress views. The current application is a React single-page application backed by a small Express API and MongoDB schedule storage.
+Finote is a student study workspace that combines note-taking, class scheduling, flashcards, mock exams, and learning-progress views. The application is a React single-page application backed by an Express API and MongoDB.
 
 > [!IMPORTANT]
-> The repository is still under development. The sign-in and sign-up interfaces are present, but JWT registration, login, token verification, and protected routes are not yet implemented. Notes and study materials are stored in browser `localStorage`; only class schedules are currently persisted through MongoDB.
+> The repository is still under development. Authentication now uses the Express API, MongoDB accounts, short-lived access tokens, and rotating refresh-token cookies. Notes, schedules, and study materials are still stored in browser `localStorage` unless a feature explicitly uses an API.
 
 ## Project Overview
 
@@ -20,7 +20,7 @@ Finote helps students organize and review study material through the following f
 - Terms of Service and Privacy Policy review
 - Light and dark themes
 
-Most visual and study features run entirely in the browser. MongoDB is currently used by the schedule API. Authentication and account data remain frontend prototypes and should not be treated as production authentication.
+Most visual and study features run entirely in the browser. Authentication and profile data use MongoDB through the API. Configure secrets, email delivery, and the production cookie settings before deployment.
 
 ## Tech Stack
 
@@ -45,14 +45,20 @@ The rich-text editor UI uses browser content editing in `NotesPage.jsx`; Editor.
 | Node.js | JavaScript server runtime |
 | Express 5 | HTTP API framework |
 | Mongoose 9 | MongoDB schema and data access |
-| MongoDB | Schedule persistence |
+| MongoDB | Account and session persistence |
 | CORS | Cross-origin browser access |
 | dotenv | Environment variable loading |
 | Nodemon | Backend development process |
 
-### Planned Authentication
+### Authentication
 
-JWT authentication is planned but not implemented. When adding it, the backend will also need packages such as `jsonwebtoken` and `bcryptjs`.
+`client/src/auth/AuthContext.jsx` restores sessions from an HTTP-only refresh cookie and keeps access tokens in memory. `RouteGuards.jsx` protects workspace routes and redirects signed-in users away from public pages. The auth modal calls `/api/auth` for registration, email verification, login, code resend, and password recovery. After verification, users sign in and complete their profile through `/api/users/complete-profile` before entering the workspace.
+
+The API stores password and one-time-code hashes, expires verification and reset codes, rotates refresh tokens, revokes sessions on password reset, and rate-limits sensitive auth requests. Refresh cookies are scoped to `/api/auth`; configure `COOKIE_SECURE=true` when serving over HTTPS.
+
+Set the following values in `server/.env`: `MONGODB_URI`, `CODE_PEPPER`, `JWT_ACCESS_SECRET`, `EMAIL_USER`, and `EMAIL_PASS`. Profile picture uploads also require `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET`. Optional cookie/session settings include `COOKIE_NAME`, `COOKIE_SECURE`, `COOKIE_SAME_SITE`, `JWT_ACCESS_TTL`, `REFRESH_TOKEN_DAYS`, and `REMEMBER_ME_DAYS`. Set `CLIENT_URL` to the deployed frontend origin. For local Vite development, the `/api` proxy targets `http://localhost:5000`; override it with `VITE_API_PROXY` if needed. Set `VITE_API_URL` in the frontend when the deployed API is hosted on a different origin.
+
+Address lookup uses explicit searches against the public Nominatim service, with attribution, in-process caching, and a one-request-per-second queue. Run this API as a single instance to respect the [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/); use a managed or self-hosted geocoder before scaling to multiple instances.
 
 ### Deployment
 
@@ -83,7 +89,7 @@ Browser
   v
 Vite/React frontend
   |
-  | relative /api requests for schedules
+  | /api requests for authentication and account data
   v
 Express API
   |
@@ -91,6 +97,8 @@ Express API
   v
 MongoDB
 ```
+
+Authentication endpoints are mounted under `/api/auth` (`register`, `verify-email`, `resend-verification`, `login`, `refresh`, `logout`, `forgot-password`, `verify-reset-code`, and `reset-password`). Authenticated account endpoints are mounted under `/api/users` (`me`, `complete-profile`, `address-search`, and `profile-picture`).
 
 ### Theme
 
