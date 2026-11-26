@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useBlocker, useNavigate, useSearchParams } from "react-router-dom";
 import {
     BookOpen,
     Bold,
@@ -19,8 +19,9 @@ import {
 } from "lucide-react";
 import Styling from "../../components/theme/Styling";
 import { useDarkMode } from "../../components/theme/DarkModeContext";
-import { NOTES_STORAGE_KEY, readStoredItems } from "../../components/utils/studyTools";
+import { useAuth } from "../../auth/AuthContext";
 import NoteTableControls from "../../components/utils/components/NoteTableControls";
+import useDialogFocus from "../../components/utils/useDialogFocus";
 import {
     clearListItemIndent,
     cleanEditorHtml,
@@ -366,10 +367,97 @@ const enhanceTables = (editor) => {
     });
 };
 
+function NotesPageSkeleton({ styles }) {
+    const bar = "animate-pulse rounded-md bg-gray-500/15";
+    const toolbarButton = "h-8 w-8 animate-pulse rounded-md bg-gray-500/15";
+
+    return (
+        <div
+            role="status"
+            aria-label="Loading notes"
+            aria-busy="true"
+            className={`mx-auto flex min-h-[calc(100dvh-120px)] w-full max-w-7xl overflow-hidden rounded-xl border md:h-[calc(100dvh-140px)] md:min-h-[520px] ${styles.border} ${styles.secondaryBg}`}
+        >
+            <span className="sr-only">Loading notes…</span>
+            <div className="grid min-h-[calc(100dvh-120px)] flex-1 grid-rows-1 md:h-full md:min-h-0 md:grid-cols-[280px_minmax(0,1fr)]">
+                <aside aria-hidden="true" className={`hidden min-h-0 flex-col border-r md:flex ${styles.border}`}>
+                    <div className="flex items-center justify-between px-4 py-4">
+                        <div className="space-y-2">
+                            <div className={`${bar} h-5 w-28`} />
+                            <div className={`${bar} h-3 w-14`} />
+                        </div>
+                        <div className={`${bar} h-9 w-9 rounded-full`} />
+                    </div>
+                    <div className="px-4 pb-3">
+                        <div className={`${bar} h-10 w-full rounded-lg`} />
+                    </div>
+                    <div className="space-y-2 px-2">
+                        {[0, 1, 2].map((item) => (
+                            <div key={item} className="space-y-2 rounded-lg px-3 py-3">
+                                <div className={`${bar} h-4 w-3/4`} />
+                                <div className={`${bar} h-3 w-full`} />
+                            </div>
+                        ))}
+                    </div>
+                </aside>
+
+                <main aria-hidden="true" className="flex min-h-0 min-w-0 flex-col">
+                    <header className={`flex flex-col gap-2 border-b px-3 py-2 sm:px-5 sm:py-3 md:flex-row md:items-center ${styles.border}`}>
+                        <div className="flex items-center gap-2 md:hidden">
+                            <div className={`${bar} h-9 flex-1 rounded-md`} />
+                            <div className={`${bar} h-9 w-9 rounded-full`} />
+                        </div>
+                        <div className="flex min-w-0 flex-wrap items-center gap-1 sm:gap-1.5 md:flex-1">
+                            <div className={`${bar} h-9 w-24 rounded-md`} />
+                            <div className={`${bar} h-8 w-12 rounded-md`} />
+                            {[0, 1, 2, 3, 4, 5, 6, 7].map((item) => (
+                                <div key={item} className={toolbarButton} />
+                            ))}
+                        </div>
+                    </header>
+
+                    <section className="modal-scroll flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-5 sm:px-8 sm:py-7 lg:px-10">
+                        <div className={`${bar} h-9 w-3/4 max-w-2xl sm:h-10`} />
+                        <div className={`mt-4 h-px w-full ${styles.border} border-t`} />
+                        <div className="mt-5 space-y-3">
+                            <div className={`${bar} h-4 w-full`} />
+                            <div className={`${bar} h-4 w-11/12`} />
+                            <div className={`${bar} h-4 w-4/5`} />
+                        </div>
+                        <div className={`${bar} mt-7 h-6 w-48`} />
+                        <div className="mt-4 space-y-3 pl-4 sm:pl-6">
+                            {["w-full", "w-11/12", "w-4/5"].map((width, item) => (
+                                <div key={item} className="flex items-center gap-3">
+                                    <div className={`${bar} h-2 w-2 shrink-0 rounded-full`} />
+                                    <div className={`${bar} h-4 ${width}`} />
+                                </div>
+                            ))}
+                        </div>
+                        <div className={`${bar} mt-7 h-6 w-56`} />
+                        <div className="mt-4 space-y-3">
+                            {["w-full", "w-10/12", "w-3/4", "w-11/12", "w-2/3"].map((width, item) => (
+                                <div key={item} className={`${bar} h-4 ${width}`} />
+                            ))}
+                        </div>
+                    </section>
+
+                    <footer className={`flex shrink-0 justify-end gap-2 border-t px-3 py-2 sm:px-5 ${styles.border}`}>
+                        <div className={`${bar} h-8 w-32 rounded-lg`} />
+                        <div className={`${bar} h-8 w-32 rounded-lg`} />
+                    </footer>
+                </main>
+            </div>
+        </div>
+    );
+}
+
 export default function NotesPage() {
     const styles = Styling();
     const { darkMode } = useDarkMode();
+    const { apiRequest } = useAuth();
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const notebookId = searchParams.get("notebookId");
     const editorRef = useRef(null);
     const menuRef = useRef(null);
     const textColorMenuRef = useRef(null);
@@ -378,8 +466,17 @@ export default function NotesPage() {
     const activeTableRef = useRef(null);
     const editorSelectionRef = useRef(null);
     const editorHistoryRef = useRef({});
-    const [notes, setNotes] = useState(() => readStoredItems(NOTES_STORAGE_KEY));
-    const [activeId, setActiveId] = useState(() => readStoredItems(NOTES_STORAGE_KEY)[0]?.id ?? null);
+    const saveTimersRef = useRef(new Map());
+    const noteVersionsRef = useRef(new Map());
+    const persistedNotesRef = useRef(new Map());
+    const unsavedNoteIdsRef = useRef(new Set());
+    const hasUnsavedChangesRef = useRef(false);
+    const pendingSaveCountRef = useRef(0);
+    const saveQueueRef = useRef(Promise.resolve());
+    const latestNotesRef = useRef([]);
+    const navigationDialogRef = useRef(null);
+    const [notes, setNotes] = useState([]);
+    const [activeId, setActiveId] = useState(null);
     const [query, setQuery] = useState("");
     const [deleteId, setDeleteId] = useState(null);
     const [menuId, setMenuId] = useState(null);
@@ -387,10 +484,123 @@ export default function NotesPage() {
     const [textColorOpen, setTextColorOpen] = useState(false);
     const [activeTable, setActiveTable] = useState(null);
     const [tableHandleMenu, setTableHandleMenu] = useState(null);
+    const [loadedNotebookKey, setLoadedNotebookKey] = useState(undefined);
+    const loading = loadedNotebookKey !== notebookId;
+    const [saveError, setSaveError] = useState("");
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [savingNoteCount, setSavingNoteCount] = useState(0);
+    const [savingBeforeNavigation, setSavingBeforeNavigation] = useState(false);
+    const [navigationSaveError, setNavigationSaveError] = useState("");
+    const blocker = useBlocker(({ currentLocation, nextLocation }) =>
+        hasUnsavedChangesRef.current &&
+        (
+            currentLocation.pathname !== nextLocation.pathname ||
+            currentLocation.search !== nextLocation.search ||
+            currentLocation.hash !== nextLocation.hash
+        )
+    );
+
+    const replaceNotes = useCallback((updater) => {
+        setNotes((current) => {
+            const next = typeof updater === "function" ? updater(current) : updater;
+            latestNotesRef.current = next;
+            return next;
+        });
+    }, []);
+
+    const updateUnsavedState = useCallback((noteId, unsaved) => {
+        if (unsaved) unsavedNoteIdsRef.current.add(noteId);
+        else unsavedNoteIdsRef.current.delete(noteId);
+        const hasChanges = unsavedNoteIdsRef.current.size > 0;
+        hasUnsavedChangesRef.current = hasChanges;
+        setHasUnsavedChanges(hasChanges);
+    }, []);
 
     useEffect(() => {
-        localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(notes));
-    }, [notes]);
+        let active = true;
+        let redirected = false;
+        let minimumTimer = null;
+        let finishMinimumWait = null;
+        const startedAt = window.performance.now();
+        const loadNotes = async () => {
+            try {
+                if (!notebookId) {
+                    const { notebooks } = await apiRequest("/notebooks");
+                    if (!active) return;
+                    if (notebooks.length) {
+                        redirected = true;
+                        setSearchParams({ notebookId: notebooks[0].id }, { replace: true });
+                        return;
+                    }
+                    replaceNotes([]);
+                    persistedNotesRef.current.clear();
+                    noteVersionsRef.current.clear();
+                    unsavedNoteIdsRef.current.clear();
+                    hasUnsavedChangesRef.current = false;
+                    setHasUnsavedChanges(false);
+                    return;
+                }
+                const { notes: loadedNotes } = await apiRequest(
+                    `/notes?notebookId=${encodeURIComponent(notebookId)}`
+                );
+                if (!active) return;
+                latestNotesRef.current = loadedNotes;
+                noteVersionsRef.current = new Map(loadedNotes.map((note) => [note.id, 0]));
+                persistedNotesRef.current = new Map(
+                    loadedNotes.map((note) => [note.id, { ...note }])
+                );
+                unsavedNoteIdsRef.current.clear();
+                hasUnsavedChangesRef.current = false;
+                setHasUnsavedChanges(false);
+                setNotes(loadedNotes);
+                setActiveId(loadedNotes[0]?.id ?? null);
+            } catch (error) {
+                if (active) setSaveError(error.message);
+            } finally {
+                if (active && !redirected) {
+                    const remaining = Math.max(0, 2000 - (window.performance.now() - startedAt));
+                    if (remaining > 0) {
+                        await new Promise((resolve) => {
+                            finishMinimumWait = resolve;
+                            minimumTimer = window.setTimeout(resolve, remaining);
+                        });
+                    }
+                    if (active) setLoadedNotebookKey(notebookId);
+                }
+            }
+        };
+        loadNotes();
+        return () => {
+            active = false;
+            if (minimumTimer) window.clearTimeout(minimumTimer);
+            finishMinimumWait?.();
+        };
+    }, [apiRequest, notebookId, replaceNotes, setSearchParams]);
+
+    useEffect(() => {
+        const warnBeforeUnload = (event) => {
+            if (!hasUnsavedChangesRef.current) return;
+            event.preventDefault();
+            event.returnValue = "";
+        };
+        window.addEventListener("beforeunload", warnBeforeUnload);
+        return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+    }, []);
+
+    useEffect(() => {
+        if (blocker.state !== "blocked") return;
+        unsavedNoteIdsRef.current.forEach((noteId) => {
+            const timer = saveTimersRef.current.get(noteId);
+            if (timer) window.clearTimeout(timer);
+            saveTimersRef.current.delete(noteId);
+        });
+    }, [blocker.state]);
+
+    useEffect(() => {
+        if (blocker.state === "blocked" && !hasUnsavedChanges && !savingBeforeNavigation) {
+            blocker.proceed();
+        }
+    }, [blocker, hasUnsavedChanges, savingBeforeNavigation]);
 
     useEffect(() => {
         if (menuId === null) return undefined;
@@ -429,6 +639,128 @@ export default function NotesPage() {
     );
     const activeNote = notes.find((note) => note.id === activeId) ?? null;
 
+    const persistNote = useCallback((note) => {
+        if (!note?.id || !notebookId) return Promise.resolve(false);
+        const version = noteVersionsRef.current.get(note.id) ?? 0;
+        const saveRequest = saveQueueRef.current.catch(() => false).then(async () => {
+            if (noteVersionsRef.current.get(note.id) !== version) return false;
+            try {
+                const response = await apiRequest(`/notes/${encodeURIComponent(note.id)}`, {
+                    method: "PATCH",
+                    body: JSON.stringify({ title: note.title, content: note.content }),
+                });
+                const savedNote = { ...note, ...response.note };
+                persistedNotesRef.current.set(note.id, savedNote);
+                if (noteVersionsRef.current.get(note.id) === version) {
+                    replaceNotes((current) => current.map((item) =>
+                        item.id === note.id ? savedNote : item
+                    ));
+                    updateUnsavedState(note.id, false);
+                    setSaveError("");
+                }
+                return noteVersionsRef.current.get(note.id) === version;
+            } catch (error) {
+                setSaveError(error.message);
+                return false;
+            }
+        });
+        saveQueueRef.current = saveRequest;
+        pendingSaveCountRef.current += 1;
+        setSavingNoteCount(pendingSaveCountRef.current);
+        return saveRequest.finally(() => {
+            pendingSaveCountRef.current -= 1;
+            setSavingNoteCount(pendingSaveCountRef.current);
+        });
+    }, [apiRequest, notebookId, replaceNotes, updateUnsavedState]);
+
+    const queueNoteSave = useCallback((note, version) => {
+        const existingTimer = saveTimersRef.current.get(note.id);
+        if (existingTimer) window.clearTimeout(existingTimer);
+        const timer = window.setTimeout(() => {
+            saveTimersRef.current.delete(note.id);
+            if (noteVersionsRef.current.get(note.id) === version) persistNote(note);
+        }, 600);
+        saveTimersRef.current.set(note.id, timer);
+    }, [persistNote]);
+
+    const flushNoteSave = useCallback((note) => {
+        if (!note?.id) return;
+        const timer = saveTimersRef.current.get(note.id);
+        if (timer) window.clearTimeout(timer);
+        saveTimersRef.current.delete(note.id);
+        return persistNote(note);
+    }, [persistNote]);
+
+    const stayOnPage = () => {
+        blocker.reset();
+        setNavigationSaveError("");
+        unsavedNoteIdsRef.current.forEach((noteId) => {
+            const note = latestNotesRef.current.find((item) => item.id === noteId);
+            if (note) queueNoteSave(note, noteVersionsRef.current.get(noteId) ?? 0);
+        });
+    };
+
+    const discardAndProceed = () => {
+        if (pendingSaveCountRef.current > 0) return;
+        const dirtyIds = new Set(unsavedNoteIdsRef.current);
+        dirtyIds.forEach((noteId) => {
+            const timer = saveTimersRef.current.get(noteId);
+            if (timer) window.clearTimeout(timer);
+            saveTimersRef.current.delete(noteId);
+            noteVersionsRef.current.set(noteId, (noteVersionsRef.current.get(noteId) ?? 0) + 1);
+        });
+        const revertedNotes = latestNotesRef.current.map((note) => {
+            if (!dirtyIds.has(note.id)) return note;
+            const savedNote = persistedNotesRef.current.get(note.id);
+            if (!savedNote) return note;
+            editorHistoryRef.current[note.id] = {
+                stack: [savedNote.content],
+                index: 0,
+                lastInputAt: 0,
+            };
+            return { ...savedNote };
+        });
+        unsavedNoteIdsRef.current.clear();
+        hasUnsavedChangesRef.current = false;
+        setHasUnsavedChanges(false);
+        setSaveError("");
+        setNavigationSaveError("");
+        replaceNotes(revertedNotes);
+        blocker.proceed();
+    };
+
+    const saveAndProceed = async () => {
+        setSavingBeforeNavigation(true);
+        setNavigationSaveError("");
+        try {
+            const dirtyIds = Array.from(unsavedNoteIdsRef.current);
+            for (const noteId of dirtyIds) {
+                const timer = saveTimersRef.current.get(noteId);
+                if (timer) window.clearTimeout(timer);
+                saveTimersRef.current.delete(noteId);
+                const note = latestNotesRef.current.find((item) => item.id === noteId);
+                if (!note || !(await persistNote(note))) {
+                    setNavigationSaveError("Your changes could not be saved. Please try again or leave without saving.");
+                    return;
+                }
+            }
+            if (unsavedNoteIdsRef.current.size > 0) {
+                setNavigationSaveError("Some changes are still unsaved. Please try again.");
+                return;
+            }
+            blocker.proceed();
+        } finally {
+            setSavingBeforeNavigation(false);
+        }
+    };
+
+    useDialogFocus(
+        navigationDialogRef,
+        stayOnPage,
+        savingBeforeNavigation,
+        blocker.state === "blocked" && hasUnsavedChanges
+    );
+
     useEffect(() => {
         if (
             editorRef.current &&
@@ -444,11 +776,17 @@ export default function NotesPage() {
     }, [activeId, activeNote]);
 
     const updateActiveNote = (changes) => {
-        setNotes((current) =>
-            current.map((note) =>
-                note.id === activeId ? { ...note, ...changes, updated: "Just now" } : note
-            )
-        );
+        if (!activeId) return;
+        let changedNote = null;
+        const version = (noteVersionsRef.current.get(activeId) ?? 0) + 1;
+        noteVersionsRef.current.set(activeId, version);
+        updateUnsavedState(activeId, true);
+        replaceNotes((current) => current.map((note) => {
+            if (note.id !== activeId) return note;
+            changedNote = { ...note, ...changes, updatedAt: new Date().toISOString() };
+            return changedNote;
+        }));
+        if (changedNote) queueNoteSave(changedNote, version);
     };
 
     const recordEditorChange = (content, coalesceTyping = false) => {
@@ -462,7 +800,7 @@ export default function NotesPage() {
         histories[activeId] = history;
         if (history.stack[history.index] === content) return;
 
-        const now = Date.now();
+        const now = window.performance.now();
         if (coalesceTyping && history.lastInputAt && now - history.lastInputAt < 750) {
             history.stack[history.index] = content;
         } else {
@@ -506,27 +844,49 @@ export default function NotesPage() {
         updateActiveNote({ content });
     };
 
-    const createNote = () => {
-        const id = Date.now();
-        const note = {
-            id,
-            title: "Untitled note",
-            subject: "General",
-            content: "",
-            updated: "Just now",
-        };
-        editorHistoryRef.current[id] = { stack: [""], index: 0, lastInputAt: 0 };
-        setNotes((current) => [note, ...current]);
-        setActiveId(id);
-        setQuery("");
-        window.requestAnimationFrame(() => editorRef.current?.focus());
+    const createNote = async () => {
+        if (!notebookId) {
+            navigate("/home");
+            return;
+        }
+        if (loading) return;
+        setSaveError("");
+        try {
+            const { note } = await apiRequest("/notes", {
+                method: "POST",
+                body: JSON.stringify({ notebookId, title: "Untitled note", content: "" }),
+            });
+            editorHistoryRef.current[note.id] = { stack: [""], index: 0, lastInputAt: 0 };
+            noteVersionsRef.current.set(note.id, 0);
+            persistedNotesRef.current.set(note.id, { ...note });
+            replaceNotes((current) => [note, ...current]);
+            setActiveId(note.id);
+            setQuery("");
+            window.requestAnimationFrame(() => editorRef.current?.focus());
+        } catch (error) {
+            setSaveError(error.message);
+        }
     };
 
-    const deleteNote = () => {
-        const remaining = notes.filter((note) => note.id !== deleteId);
-        setNotes(remaining);
-        if (activeId === deleteId) setActiveId(remaining[0]?.id ?? null);
-        setDeleteId(null);
+    const deleteNote = async () => {
+        if (!deleteId) return;
+        setSaveError("");
+        try {
+            await apiRequest(`/notes/${encodeURIComponent(deleteId)}`, { method: "DELETE" });
+            const timer = saveTimersRef.current.get(deleteId);
+            if (timer) window.clearTimeout(timer);
+            saveTimersRef.current.delete(deleteId);
+            const remaining = latestNotesRef.current.filter((note) => note.id !== deleteId);
+            replaceNotes(remaining);
+            noteVersionsRef.current.delete(deleteId);
+            persistedNotesRef.current.delete(deleteId);
+            updateUnsavedState(deleteId, false);
+            delete editorHistoryRef.current[deleteId];
+            if (activeId === deleteId) setActiveId(remaining[0]?.id ?? null);
+            setDeleteId(null);
+        } catch (error) {
+            setSaveError(error.message);
+        }
     };
 
     const applyFormat = (command, value = null) => {
@@ -1155,6 +1515,8 @@ export default function NotesPage() {
         );
     };
 
+    if (loading) return <NotesPageSkeleton styles={styles} />;
+
     return (
         <div
             className={`mx-auto flex min-h-[calc(100dvh-120px)] w-full max-w-7xl overflow-hidden rounded-xl
@@ -1164,7 +1526,7 @@ export default function NotesPage() {
                 <aside className={`hidden min-h-0 flex-col border-b md:flex md:max-h-none md:border-b-0 md:border-r ${styles.border}`}>
                     <div className="flex items-center justify-between px-4 py-4">
                         <div>
-                            <h1 className={`text-lg font-semibold ${styles.primaryText}`}>My Notes</h1>
+                            <h1 className={`max-w-[190px] truncate text-lg font-semibold ${styles.primaryText}`}>{notes[0]?.notebookTitle || "My Notes"}</h1>
                             <p className={`mt-0.5 text-xs ${styles.tertiaryText}`}>{notes.length} pages</p>
                         </div>
                         <button
@@ -1203,6 +1565,7 @@ export default function NotesPage() {
                                     <button
                                         type="button"
                                         onClick={() => {
+                                            if (activeNote?.id !== note.id) flushNoteSave(activeNote);
                                             setActiveId(note.id);
                                             setMenuId(null);
                                         }}
@@ -1250,13 +1613,24 @@ export default function NotesPage() {
                 </aside>
 
                 <main className="flex min-h-0 min-w-0 flex-col">
-                    {activeNote ? (
+                    {saveError && (
+                        <div role="alert" className="flex items-center justify-between gap-3 border-b border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-600">
+                            <span>{saveError}</span>
+                            {activeNote && <button type="button" onClick={() => flushNoteSave(activeNote)} className="shrink-0 font-semibold underline">Retry save</button>}
+                        </div>
+                    )}
+                    {loading ? (
+                        <div className="flex flex-1 items-center justify-center text-sm text-gray-500">Loading notes…</div>
+                    ) : activeNote ? (
                         <>
                             <header className={`flex flex-col gap-2 border-b px-3 py-2 sm:px-5 sm:py-3 md:flex-row md:items-center md:justify-between ${styles.border}`}>
                                 <div className="flex items-center gap-2 md:hidden">
                                     <select
                                         value={activeNote.id}
-                                        onChange={(event) => setActiveId(Number(event.target.value))}
+                                        onChange={(event) => {
+                                            flushNoteSave(activeNote);
+                                            setActiveId(event.target.value);
+                                        }}
                                         className={`min-w-0 flex-1 rounded-md border px-2 py-2 text-xs ${styles.input} ${styles.border}`}
                                         aria-label="Select note section"
                                     >
@@ -1377,15 +1751,28 @@ export default function NotesPage() {
                             </header>
 
                             <div className="modal-scroll flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-3 py-4 sm:px-6 sm:py-7 lg:px-10 lg:py-9">
-                                <input
+                                <textarea
+                                    rows={1}
                                     value={activeNote.title}
-                                    onChange={(event) => updateActiveNote({ title: event.target.value })}
+                                    ref={(element) => {
+                                        if (!element) return;
+                                        element.style.height = "auto";
+                                        element.style.height = `${element.scrollHeight}px`;
+                                    }}
+                                    onChange={(event) => {
+                                        event.currentTarget.style.height = "auto";
+                                        event.currentTarget.style.height = `${event.currentTarget.scrollHeight}px`;
+                                        updateActiveNote({ title: event.target.value });
+                                    }}
+                                    onKeyDown={(event) => {
+                                        if (event.key === "Enter") event.preventDefault();
+                                    }}
                                     onFocus={() => {
                                         editorSelectionRef.current = null;
                                     }}
                                     placeholder="Untitled note"
                                     aria-label="Note title"
-                                    className={`w-full min-w-0 bg-transparent text-xl font-serif font-semibold outline-none sm:text-2xl lg:text-3xl ${styles.primaryText}`}
+                                    className={`block w-full resize-none overflow-hidden whitespace-pre-wrap break-words border-b pb-4 ${styles.border} min-w-0 bg-transparent text-xl font-serif font-semibold outline-none sm:text-2xl lg:text-3xl ${styles.primaryText}`}
                                 />
                                 <div
                                     ref={editorRef}
@@ -1405,7 +1792,7 @@ export default function NotesPage() {
                                     }}
                                     data-placeholder="Start writing..."
                                     aria-label="Note content"
-                                    className={`note-editor ${darkMode ? "note-editor-dark" : "note-editor-light"} mt-6 min-h-[12rem] w-full min-w-0 max-w-full flex-1 bg-transparent text-base leading-7 outline-none ${styles.primaryText}`}
+                                    className={`note-editor ${darkMode ? "note-editor-dark" : "note-editor-light"} mt-4 min-h-[12rem] w-full min-w-0 max-w-full flex-1 bg-transparent text-base leading-7 outline-none ${styles.primaryText}`}
                                 />
                             </div>
                             <NoteTableControls
@@ -1421,20 +1808,26 @@ export default function NotesPage() {
                                 canMoveCell={canMoveCell}
                                 getColumnCount={getColumnCount}
                             />
-                            <footer className={`flex shrink-0 flex-wrap items-center justify-end gap-3 border-t px-3 py-2 ${styles.border}`}>
+                            <footer className={`flex shrink-0 flex-wrap items-center justify-end gap-2 border-t px-3 py-2 ${styles.border}`}>
                                 <div className="flex w-full gap-2 sm:w-auto">
                                     <button
                                         type="button"
-                                        onClick={() => navigate("/study-tools?tab=mock-exams")}
-                                        className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 sm:flex-none sm:px-4 ${styles.buttonFrost}`}
+                                        onClick={() => navigate("/study-tools", { state: { tab: "mock-exams" } })}
+                                        className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg
+                                                    px-3 py-2 text-sm font-semibold transition-colors active:scale-[0.98]
+                                                    focus-visible:outline-2 focus-visible:outline-offset-2
+                                                    focus-visible:outline-blue-500 sm:flex-none sm:px-4 ${styles.buttonFrost}`}
                                     >
-                                        <ClipboardList className="h-4 w-4 text-blue-600" />
+                                        <ClipboardList className="h-4 w-4" />
                                         Mock Exam
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => navigate("/study-tools?tab=flashcards")}
-                                        className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 sm:flex-none sm:px-4 ${styles.buttonBlue}`}
+                                        onClick={() => navigate("/study-tools", { state: { tab: "flashcards" } })}
+                                        className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2
+                                             text-sm font-semibold transition-colors active:scale-[0.98] focus-visible:outline-2
+                                             focus-visible:outline-offset-2 focus-visible:outline-blue-500 sm:flex-none sm:px-4
+                                             ${styles.blueBg2} ${styles.blueBg2hover}  ${styles.blueBorder}`}
                                     >
                                         <BookOpen className="h-4 w-4" />
                                         Flashcards
@@ -1458,6 +1851,62 @@ export default function NotesPage() {
                     )}
                 </main>
             </div>
+
+            {blocker.state === "blocked" && hasUnsavedChanges && (
+                <div className="modal-overlay" role="presentation">
+                    <div
+                        ref={navigationDialogRef}
+                        tabIndex={-1}
+                        role="alertdialog"
+                        aria-modal="true"
+                        aria-labelledby="unsaved-note-title"
+                        aria-describedby="unsaved-note-description"
+                        className={`w-full max-w-md rounded-xl border p-5 ${styles.border} ${styles.secondaryBg} ${styles.shadow}`}
+                    >
+                        <h2 id="unsaved-note-title" className={`font-semibold ${styles.primaryText}`}>
+                            Save your changes before leaving?
+                        </h2>
+                        <p id="unsaved-note-description" className={`mt-2 text-sm ${styles.secondaryText}`}>
+                            This note has unsaved changes. You can save them before leaving or discard them.
+                        </p>
+                        {savingNoteCount > 0 && (
+                            <p role="status" className={`mt-3 text-sm ${styles.secondaryText}`}>
+                                A save is in progress. Please wait before discarding changes.
+                            </p>
+                        )}
+                        {navigationSaveError && (
+                            <p role="alert" className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600">
+                                {navigationSaveError}
+                            </p>
+                        )}
+                        <div className="mt-5 flex flex-wrap justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={stayOnPage}
+                                className={`min-h-10 px-4 py-2 text-sm ${styles.buttonGray}`}
+                            >
+                                Stay on page
+                            </button>
+                            <button
+                                type="button"
+                                disabled={savingNoteCount > 0 || savingBeforeNavigation}
+                                onClick={discardAndProceed}
+                                className={`min-h-10 px-4 py-2 text-sm ${styles.buttonGray} disabled:cursor-not-allowed disabled:opacity-50`}
+                            >
+                                Leave without saving
+                            </button>
+                            <button
+                                type="button"
+                                disabled={savingNoteCount > 0 || savingBeforeNavigation}
+                                onClick={saveAndProceed}
+                                className={`min-h-10 px-4 py-2 text-sm ${styles.buttonBlue} disabled:cursor-not-allowed disabled:opacity-50`}
+                            >
+                                {savingBeforeNavigation ? "Saving..." : "Save and leave"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {deleteId && (
                 <div className="modal-overlay" role="presentation" onMouseDown={(event) => {

@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const Notebook = require("../models/Notebook");
 const Note = require("../models/Note");
+const uniqueName = require("../utils/uniqueName");
 
 const MAX_TITLE_LENGTH = 120;
 const MAX_CONTENT_LENGTH = 750000;
@@ -124,10 +125,15 @@ async function createNote(req, res) {
       req.body.notebookId,
       req.user._id
     );
+    const requestedTitle = readTitle(req.body.title) || "Untitled note";
+    const existingTitles = await Note.distinct("title", {
+      user: req.user._id,
+      notebook: notebook._id,
+    });
     const note = await Note.create({
       user: req.user._id,
       notebook: notebook._id,
-      title: readTitle(req.body.title),
+      title: uniqueName(requestedTitle, existingTitles, MAX_TITLE_LENGTH),
       content: readContent(req.body.content),
     });
     return res.status(201).json({
@@ -159,7 +165,13 @@ async function updateNote(req, res) {
     const notebook = await getOwnedNotebook(ownedNote.notebook, req.user._id);
     const changes = {};
     if (Object.hasOwn(req.body, "title")) {
-      changes.title = readTitle(req.body.title);
+      const requestedTitle = readTitle(req.body.title) || "Untitled note";
+      const existingTitles = await Note.distinct("title", {
+        user: req.user._id,
+        notebook: notebook._id,
+        _id: { $ne: ownedNote._id },
+      });
+      changes.title = uniqueName(requestedTitle, existingTitles, MAX_TITLE_LENGTH);
     }
     if (Object.hasOwn(req.body, "content")) {
       changes.content = readContent(req.body.content);

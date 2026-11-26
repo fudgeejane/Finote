@@ -9,7 +9,6 @@ import {
 import toast from "react-hot-toast";
 import Styling from "../../components/theme/Styling";
 
-const STORAGE_KEY = "finote.student.schedule.v1";
 const API_URL = "/api/schedules";
 const DAYS = [
   { key: "Mon", label: "Monday" },
@@ -19,77 +18,6 @@ const DAYS = [
   { key: "Fri", label: "Friday" },
   { key: "Sat", label: "Saturday" },
   { key: "Sun", label: "Sunday" },
-];
-
-const INITIAL_SCHEDULE = [
-  {
-    id: "demo-1",
-    subject: "Cell Biology",
-    code: "BIO 102",
-    instructor: "Dr. Elaine Park",
-    startTime: "08:30",
-    endTime: "10:00",
-    room: "B-204",
-    building: "Science Hall",
-    type: "Lecture",
-    section: "A",
-    notes: "Bring lab workbook.",
-    days: ["Mon", "Wed", "Fri"],
-    recurring: true,
-    reminder: 15,
-    color: "blue",
-  },
-  {
-    id: "demo-2",
-    subject: "Calculus I",
-    code: "MATH 101",
-    instructor: "Prof. James Liu",
-    startTime: "10:30",
-    endTime: "12:00",
-    room: "A-118",
-    building: "Main Building",
-    type: "Lecture",
-    section: "B",
-    notes: "Midterm review.",
-    days: ["Mon", "Wed"],
-    recurring: true,
-    reminder: 15,
-    color: "purple",
-  },
-  {
-    id: "demo-3",
-    subject: "World History",
-    code: "HIST 210",
-    instructor: "Dr. Maria Santos",
-    startTime: "13:00",
-    endTime: "14:30",
-    room: "C-302",
-    building: "Humanities Wing",
-    type: "Hybrid",
-    section: "C",
-    notes: "Join the online session after discussion.",
-    days: ["Tue", "Thu"],
-    recurring: true,
-    reminder: 30,
-    color: "orange",
-  },
-  {
-    id: "demo-4",
-    subject: "Chemistry Lab",
-    code: "CHEM 103L",
-    instructor: "Prof. Noah Kim",
-    startTime: "09:00",
-    endTime: "11:30",
-    room: "Lab 3",
-    building: "Science Hall",
-    type: "Laboratory",
-    section: "A",
-    notes: "Closed-toe shoes required.",
-    days: ["Tue", "Sat"],
-    recurring: true,
-    reminder: 30,
-    color: "green",
-  },
 ];
 
 const EMPTY_CLASS = {
@@ -127,21 +55,12 @@ function formatTime(time) {
   return `${hours % 12 || 12}:${String(mins).padStart(2, "0")} ${hours >= 12 ? "PM" : "AM"}`;
 }
 
-function readLocalSchedule() {
-  try {
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return Array.isArray(stored) ? stored : INITIAL_SCHEDULE;
-  } catch {
-    return INITIAL_SCHEDULE;
-  }
-}
-
 export default function SchedulePage() {
   const styles = Styling();
   const now = new Date();
   const jsDay = new Date().getDay();
   const currentDay = DAYS[(jsDay + 6) % 7]?.key;
-  const [classes, setClasses] = useState(readLocalSchedule);
+  const [classes, setClasses] = useState([]);
   const [modal, setModal] = useState(null);
   const [viewMode, setViewMode] = useState("Week");
   const [monthCursor, setMonthCursor] = useState(
@@ -153,18 +72,13 @@ export default function SchedulePage() {
     fetch(API_URL)
       .then((response) => (response.ok ? response.json() : null))
       .then((items) => {
-        if (!cancelled && Array.isArray(items) && items.length)
-          setClasses(items);
+        if (!cancelled && Array.isArray(items)) setClasses(items);
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(classes));
-  }, [classes]);
 
   const todayClasses = classes
     .filter((item) => item.days.includes(currentDay))

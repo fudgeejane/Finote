@@ -74,7 +74,7 @@ export default function Styling() {
     streakIconBg: darkMode ? 'bg-orange-950/60' : 'bg-orange-100',
     streakIconText: darkMode ? 'text-orange-400' : 'text-orange-500',
     headerBg: darkMode
-      ? 'bg-[#121212]/20 backdrop-blur-xl border-b border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.3)]'
+      ? 'bg-[#121212]/60 backdrop-blur-xl border-b border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.3)]'
       : 'bg-white/20 backdrop-blur-xl border-b border-black/5 shadow-[0_8px_32px_rgba(15,23,42,0.08)]',
     headerNavText: darkMode
       ? 'text-gray-300 hover:text-blue-400'
@@ -131,7 +131,7 @@ export default function Styling() {
       ? 'cursor-pointer disabled:opacity-80 disabled:cursor-not-allowed bg-gray-600 hover:bg-gray-700 text-white'
       : 'cursor-pointer disabled:opacity-80 disabled:cursor-not-allowed bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-800',
     buttonFrost: darkMode
-      ? 'cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 border border-white/15 bg-white/5 text-gray-100 shadow-sm backdrop-blur-xl transition hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400'
+      ? 'cursor-pointer disabled:cursor-not-allowed disabled:opacity-50   bg-white/5 text-gray-100 shadow-sm backdrop-blur-xl transition hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400'
       : 'cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 border border-gray-300 bg-white/40 text-gray-700 shadow-sm backdrop-blur-xl transition hover:border-gray-400 hover:bg-white/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500',
     buttonPurple: `cursor-pointer disabled:cursor-not-allowed text-white disabled:opacity-80 ${darkMode ? 'bg-purple-600 hover:bg-purple-700' : 'bg-purple-600 hover:bg-purple-500'}`,
     buttonYellow: `cursor-pointer disabled:cursor-not-allowed text-white disabled:opacity-80 ${darkMode ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-yellow-500 hover:bg-yellow-400'}`,
@@ -194,6 +194,50 @@ export default function Styling() {
       : 'bg-green-200/50 text-gray-600',
     wrong: darkMode ? 'bg-red-400/70 text-white' : 'bg-red-200/50',
     correctText: darkMode ? 'text-green-200' : 'text-green-700',
+
+    // Study tools
+    studyMutedText: darkMode ? 'text-[#AEB7C6]' : 'text-[#596273]',
+    studyPlaceholder: darkMode
+      ? 'placeholder:text-[#AEB7C6]'
+      : 'placeholder:text-[#596273]',
+    studyAccent: darkMode ? 'accent-blue-400' : 'accent-blue-700',
+    studyFocusRing: darkMode
+      ? 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400'
+      : 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700',
+    studyInput: darkMode
+      ? 'border-[#3C3C3C] bg-[#292929] text-[#E0E0E0] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400'
+      : 'border-[#DDDDDD] bg-[#FAFAFA] text-[#333333] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700',
+    studyOverlayStyle: {
+      backgroundColor: darkMode ? 'rgba(0, 0, 0, 0.64)' : 'rgba(15, 23, 42, 0.28)',
+    },
+    studyCheckbox: darkMode ? 'border-gray-500' : 'border-gray-400',
+    studyPrimaryButton: darkMode
+      ? 'cursor-pointer border border-transparent bg-blue-700 text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:border-gray-600 disabled:bg-gray-700 disabled:text-gray-200'
+      : 'cursor-pointer border border-transparent bg-blue-600 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:border-gray-400 disabled:bg-gray-200 disabled:text-gray-700',
+    studyGhostButton: darkMode
+      ? 'cursor-pointer rounded-lg border border-gray-600 bg-gray-800 text-gray-100 hover:bg-gray-700 disabled:cursor-not-allowed disabled:border-gray-600 disabled:bg-gray-700 disabled:text-gray-200'
+      : 'cursor-pointer rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:border-gray-400 disabled:bg-gray-200 disabled:text-gray-700',
+    studyDangerButton: darkMode
+      ? 'cursor-pointer rounded-lg bg-red-700 text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:bg-gray-700 disabled:text-gray-200'
+      : 'cursor-pointer rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-700',
+    studySelected: darkMode
+      ? 'border-blue-400 bg-[#1D2D4D] text-[#EAF2FF]'
+      : 'border-blue-700 bg-blue-50 text-blue-950',
+    studyTabActive: darkMode
+      ? 'border-b-2 border-blue-400 text-gray-100'
+      : 'border-b-2 border-blue-700 text-gray-900',
+    studySuccess: darkMode
+      ? 'border-green-700 bg-green-950/40 text-green-200'
+      : 'border-green-700 bg-green-50 text-green-800',
+    studyInfo: darkMode
+      ? 'border-blue-700 bg-blue-950/40 text-blue-200'
+      : 'border-blue-700 bg-blue-50 text-blue-800',
+    studyDanger: darkMode
+      ? 'border-red-700 bg-red-950/40 text-red-200'
+      : 'border-red-700 bg-red-50 text-red-800',
+    studyDisabled: darkMode
+      ? 'disabled:cursor-not-allowed disabled:border-gray-600 disabled:bg-gray-700 disabled:text-gray-200'
+      : 'disabled:cursor-not-allowed disabled:border-gray-400 disabled:bg-gray-200 disabled:text-gray-700',
 
     // Misc
     blueHover: darkMode ? 'hover:bg-blue-800/50' : 'hover:bg-blue-50',

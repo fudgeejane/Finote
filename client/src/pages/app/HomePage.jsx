@@ -9,7 +9,6 @@ import {
 import Styling from "../../components/theme/Styling";
 import NotebookModal from "../../components/utils/NotebookModal";
 import { useAuth } from "../../auth/AuthContext";
-import { importLegacyNotes } from "../../api/legacyNotesMigration";
 
 const MIN_NOTEBOOK_LOADING_MS = 2000;
 const NOTEBOOK_GRID_CLASSES = "grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4";
@@ -162,11 +161,6 @@ export default function HomePage() {
             setError("");
             setLoadError("");
             try {
-                await importLegacyNotes(apiRequest, user?.id);
-            } catch (migrationError) {
-                if (active) setError(migrationError.message);
-            }
-            try {
                 const response = await apiRequest("/notebooks");
                 if (active) setNotebooks(response.notebooks);
             } catch (loadError) {
@@ -276,7 +270,7 @@ export default function HomePage() {
                     </Link>
                 )}
                 <div className="flex flex-wrap items-center justify-end gap-2">
-                    <div className={`flex items-center gap-2 rounded-lg border  px-3 ${styles.buttonFrost}`}>
+                    <div className={`flex items-center gap-2 rounded-lg   px-3 ${styles.buttonFrost}`}>
                         <ArrowUpDown className="h-4 w-4 shrink-0" aria-hidden="true" />
                         <select
                             id="notebook-sort"
@@ -294,7 +288,7 @@ export default function HomePage() {
                         type="button"
                         disabled={busy}
                         onClick={() => { setError(""); setModal({ mode: "create" }); }}
-                        className={`inline-flex shrink-0 items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold ${styles.buttonFrost}`}
+                        className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold ${styles.buttonFrost}`}
                     >
                         <BadgePlus className="h-4 w-4" />
                         New Notebook

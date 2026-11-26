@@ -3,6 +3,16 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 const AuthContext = createContext(null);
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
+function parsePayload(responseText) {
+  try {
+    const payload = responseText ? JSON.parse(responseText) : {};
+    return payload && typeof payload === "object" ? payload : {};
+  } catch (error) {
+    if (error instanceof SyntaxError) return {};
+    throw error;
+  }
+}
+
 async function request(path, options = {}) {
   const headers = {
     ...(options.body instanceof FormData ? {} : { "content-type": "application/json" }),
@@ -13,10 +23,15 @@ async function request(path, options = {}) {
     ...options,
     headers,
   });
-  const payload = await response.json().catch(() => ({}));
+  const responseText = await response.text();
+  const payload = parsePayload(responseText);
   if (!response.ok) {
-    const error = new Error(payload.error || "The request could not be completed.");
+    const statusMessage = `The API returned HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}.`;
+    const error = new Error(payload.error || statusMessage);
     error.status = response.status;
+    if (response.status >= 500 && import.meta.env.DEV) {
+      console.error(`API request failed: ${path}`, response.status, error.message);
+    }
     const retryAfter = Number(response.headers.get("retry-after"));
     const rateLimitHeader = response.headers.get("ratelimit") || "";
     const resetMatch = rateLimitHeader.match(/reset=(\d+)/i);

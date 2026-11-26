@@ -1,187 +1,108 @@
-import { useEffect, useState } from "react";
-import { BookOpen, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Plus, X } from "lucide-react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { BookOpen, ClipboardCheck, Layers3, MoreHorizontal, BadgePlus } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import Styling from "../../components/theme/Styling";
-import StudyToolsModal from "../../components/utils/StudyToolsModal";
+import { useDarkMode } from "../../components/theme/DarkModeContext";
+import FlashCardModal from "../../components/utils/FlashCardModal";
+import MockExamModal from "../../components/utils/MockExamModal";
+import useDialogFocus from "../../components/utils/useDialogFocus";
 import { useAuth } from "../../auth/AuthContext";
-import { importLegacyNotes } from "../../api/legacyNotesMigration";
-import {
-    EXAM_STORAGE_KEY,
-    FLASHCARD_STORAGE_KEY,
-    generateFlashcards,
-    generateMockExam,
-    readStoredItems,
-} from "../../components/utils/studyTools";
+import toast from "react-hot-toast";
 
-const tabs = [
-    { id: "flashcards", label: "Flashcards" },
-    { id: "mock-exams", label: "Mock Exams" },
-];
-
-function StudyMaterialViewer({ mode, item, onClose, styles }) {
-    const [cardIndex, setCardIndex] = useState(0);
-    const [showAnswer, setShowAnswer] = useState(false);
-    const [answers, setAnswers] = useState({});
-    const [submitted, setSubmitted] = useState(false);
-    const isFlashcards = mode === "flashcards";
-
-    return (
-        <div className="modal-overlay" role="presentation" onMouseDown={(event) => {
-            if (event.target === event.currentTarget) onClose();
-        }}>
-            <section
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="study-material-title"
-                className={`flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border ${styles.border} ${styles.secondaryBg} ${styles.shadow}`}
-            >
-                <header className={`flex items-start justify-between gap-4 border-b px-5 py-4 sm:px-7 ${styles.border}`}>
-                    <div className="min-w-0">
-                        <h2 id="study-material-title" className={`truncate text-xl font-semibold ${styles.primaryText}`}>{item.title}</h2>
-                        <p className={`mt-1 text-sm ${styles.secondaryText}`}>
-                            {isFlashcards ? `${item.cards.length} flashcards` : `${item.questions.length} questions`}
-                        </p>
-                    </div>
-                    <button type="button" onClick={onClose} aria-label="Close dialog" className={`rounded-full p-1 ${styles.closeButton}`}>
-                        <X className="h-5 w-5" />
-                    </button>
-                </header>
-
-                {isFlashcards ? (
-                    <div className="modal-scroll flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto p-5 sm:p-8">
-                        {item.cards.length ? (
-                            <>
-                                <p className={`mb-3 text-xs font-medium uppercase tracking-wide ${styles.tertiaryText}`}>
-                                    Card {cardIndex + 1} of {item.cards.length}
-                                </p>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowAnswer((visible) => !visible)}
-                                    className={`min-h-56 w-full max-w-xl rounded-2xl border p-7 text-center shadow-sm sm:p-10 ${styles.border} ${styles.secondaryBgHover}`}
-                                >
-                                    <span className={`mb-4 block text-xs font-semibold uppercase tracking-wide ${styles.blueText}`}>
-                                        {showAnswer ? "Answer" : "Question"}
-                                    </span>
-                                    <span className={`text-lg font-medium leading-relaxed ${styles.primaryText}`}>
-                                        {showAnswer ? item.cards[cardIndex].answer : item.cards[cardIndex].question}
-                                    </span>
-                                    {!showAnswer && <span className={`mt-5 block text-xs ${styles.tertiaryText}`}>Select to reveal the answer</span>}
-                                </button>
-                                <div className="mt-5 flex items-center gap-3">
-                                    <button
-                                        type="button"
-                                        disabled={cardIndex === 0}
-                                        onClick={() => { setCardIndex((current) => current - 1); setShowAnswer(false); }}
-                                        className={`inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm ${styles.buttonFrost}`}
-                                    >
-                                        <ChevronLeft className="h-4 w-4" /> Previous
-                                    </button>
-                                    <button
-                                        type="button"
-                                        disabled={cardIndex === item.cards.length - 1}
-                                        onClick={() => { setCardIndex((current) => current + 1); setShowAnswer(false); }}
-                                        className={`inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm ${styles.buttonBlue}`}
-                                    >
-                                        Next <ChevronRight className="h-4 w-4" />
-                                    </button>
-                                </div>
-                            </>
-                        ) : <p className={`py-12 text-center ${styles.secondaryText}`}>This deck has no cards.</p>}
-                    </div>
-                ) : (
-                    <form
-                        onSubmit={(event) => { event.preventDefault(); setSubmitted(true); }}
-                        className="flex min-h-0 flex-1 flex-col"
-                    >
-                        <div className="modal-scroll min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5 sm:px-7">
-                            {item.questions.map((question, index) => (
-                                <fieldset key={question.id} className={`rounded-xl border p-4 ${styles.border}`}>
-                                    <legend className={`px-1 text-xs font-semibold uppercase tracking-wide ${styles.blueText}`}>
-                                        Question {index + 1} · {question.type}
-                                    </legend>
-                                    <p className={`mt-1 text-sm leading-6 ${styles.primaryText}`}>{question.prompt}</p>
-                                    {question.options ? (
-                                        <div className="mt-3 space-y-2">
-                                            {question.options.map((option) => (
-                                                <label key={option} className={`flex cursor-pointer items-start gap-2 rounded-md p-2 text-sm ${styles.secondaryBgHover}`}>
-                                                    <input
-                                                        type="radio"
-                                                        name={question.id}
-                                                        value={option}
-                                                        checked={answers[question.id] === option}
-                                                        onChange={() => setAnswers((current) => ({ ...current, [question.id]: option }))}
-                                                    />
-                                                    <span className={styles.primaryText}>{option}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <textarea
-                                            value={answers[question.id] || ""}
-                                            onChange={(event) => setAnswers((current) => ({ ...current, [question.id]: event.target.value }))}
-                                            disabled={submitted}
-                                            rows={question.type === "Essay" ? 4 : 2}
-                                            placeholder="Write your answer..."
-                                            aria-label={`Your answer to question ${index + 1}`}
-                                            className={`mt-3 w-full rounded-lg border px-3 py-2 text-sm ${styles.input} ${styles.border}`}
-                                        />
-                                    )}
-                                    {submitted && (
-                                        <p className={`mt-3 rounded-lg p-3 text-sm ${styles.correct}`}>
-                                            <span className="font-semibold">Suggested answer: </span>{question.answer}
-                                        </p>
-                                    )}
-                                </fieldset>
-                            ))}
-                        </div>
-                        <footer className={`flex justify-end border-t px-5 py-4 sm:px-7 ${styles.border}`}>
-                            <button type="submit" disabled={submitted} className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${styles.buttonBlue}`}>
-                                <CheckCircle2 className="h-4 w-4" /> {submitted ? "Answers submitted" : "Submit exam"}
-                            </button>
-                        </footer>
-                    </form>
-                )}
-            </section>
-        </div>
-    );
-}
+const EMPTY_LOCATION_STATE = {};
+const MIN_LOADING_DURATION_MS = 2000;
 
 export default function StudyToolsPage() {
     const styles = Styling();
+    const { darkMode } = useDarkMode();
     const { user, apiRequest } = useAuth();
-    const [searchParams, setSearchParams] = useSearchParams();
-    const activeTab = tabs.find((tab) => tab.id === searchParams.get("tab"))?.id || "flashcards";
-    const isFlashcards = activeTab === "flashcards";
+    const location = useLocation();
+    const navigate = useNavigate();
+    const requestedTab = location.state?.tab || new URLSearchParams(location.search).get("tab");
+    const activeTab = requestedTab === "mock-exams" ? "mock-exams" : "flashcards";
+    const locationState = location.state && typeof location.state === "object"
+        ? location.state
+        : EMPTY_LOCATION_STATE;
+    const skeletonFill = darkMode ? "bg-white/10" : "bg-gray-200";
     const [notes, setNotes] = useState([]);
+    const [notebooks, setNotebooks] = useState([]);
     const [notesLoading, setNotesLoading] = useState(true);
     const [notesError, setNotesError] = useState("");
-    const [decks, setDecks] = useState(() => readStoredItems(FLASHCARD_STORAGE_KEY));
-    const [exams, setExams] = useState(() => readStoredItems(EXAM_STORAGE_KEY));
+    const [decks, setDecks] = useState([]);
+    const [exams, setExams] = useState([]);
     const [modalOpen, setModalOpen] = useState(false);
-    const [activeItem, setActiveItem] = useState(null);
-    const materials = isFlashcards ? decks : exams;
-    const ItemIcon = isFlashcards ? BookOpen : ClipboardCheck;
+    const [deleteItem, setDeleteItem] = useState(null);
+    const [menuItemId, setMenuItemId] = useState(null);
+    const [sortOrder, setSortOrder] = useState("recent");
+    const [deleting, setDeleting] = useState(false);
+    const [deleteError, setDeleteError] = useState("");
+    const deleteDialogRef = useRef(null);
+    const itemMenuRef = useRef(null);
+    const materials = activeTab === "flashcards" ? decks : exams;
+    const canCreate = !notesLoading && notes.length > 0;
+    const sortedMaterials = [...materials].sort((first, second) => {
+        if (sortOrder === "title") return first.title.localeCompare(second.title);
+        if (sortOrder === "title-desc") return second.title.localeCompare(first.title);
+        const firstCreated = Date.parse(first.createdAt) || 0;
+        const secondCreated = Date.parse(second.createdAt) || 0;
+        return sortOrder === "oldest"
+            ? firstCreated - secondCreated
+            : secondCreated - firstCreated;
+    });
+
+    useDialogFocus(deleteDialogRef, () => setDeleteItem(null), deleting);
+
+    useEffect(() => {
+        if (menuItemId === null) return undefined;
+        const closeOnOutsideClick = (event) => {
+            if (!itemMenuRef.current?.contains(event.target)) setMenuItemId(null);
+        };
+        const closeOnEscape = (event) => {
+            if (event.key === "Escape") setMenuItemId(null);
+        };
+        document.addEventListener("pointerdown", closeOnOutsideClick);
+        document.addEventListener("keydown", closeOnEscape);
+        return () => {
+            document.removeEventListener("pointerdown", closeOnOutsideClick);
+            document.removeEventListener("keydown", closeOnEscape);
+        };
+    }, [menuItemId]);
+
+    useEffect(() => {
+        if (location.search) {
+            navigate(location.pathname, {
+                replace: true,
+                state: { ...locationState, tab: activeTab },
+            });
+        }
+    }, [activeTab, location.pathname, location.search, locationState, navigate]);
 
     useEffect(() => {
         let active = true;
         const loadNotes = async () => {
+            const loadingStartedAt = Date.now();
             setNotesLoading(true);
             setNotesError("");
-            let migrationError = "";
             try {
-                await importLegacyNotes(apiRequest, user?.id);
-            } catch (error) {
-                migrationError = error.message;
-            }
-            try {
-                const response = await apiRequest("/notes");
+                const [notebookResponse, noteResponse, deckResponse, examResponse] = await Promise.all([
+                    apiRequest("/notebooks"),
+                    apiRequest("/notes"),
+                    apiRequest("/study-materials?type=flashcards"),
+                    apiRequest("/study-materials?type=mock-exams"),
+                ]);
                 if (active) {
-                    setNotes(response.notes);
-                    if (migrationError) setNotesError(migrationError);
+                    setNotebooks(notebookResponse.notebooks);
+                    setNotes(noteResponse.notes);
+                    setDecks(deckResponse.materials);
+                    setExams(examResponse.materials);
                 }
             } catch (error) {
                 if (active) setNotesError(error.message);
             } finally {
+                const remainingLoadingTime = MIN_LOADING_DURATION_MS - (Date.now() - loadingStartedAt);
+                if (active && remainingLoadingTime > 0) {
+                    await new Promise((resolve) => window.setTimeout(resolve, remainingLoadingTime));
+                }
                 if (active) setNotesLoading(false);
             }
         };
@@ -189,150 +110,324 @@ export default function StudyToolsPage() {
         return () => { active = false; };
     }, [apiRequest, user?.id]);
 
-    const generateMaterial = async (configuration) => {
-        if (isFlashcards) {
-            const deck = generateFlashcards(configuration.title, configuration.sections, configuration.instructions);
-            if (!deck.cards.length) throw new Error("The selected sections do not contain enough written content to make flashcards.");
-            const updatedDecks = [deck, ...decks];
-            localStorage.setItem(FLASHCARD_STORAGE_KEY, JSON.stringify(updatedDecks));
-            setDecks(updatedDecks);
-            setModalOpen(false);
-            setActiveItem({ mode: "flashcards", item: deck });
-            return;
-        }
-
-        const exam = generateMockExam(configuration);
-        if (!exam.questions.length) throw new Error("The selected sections do not contain enough written content to make an exam.");
-        const updatedExams = [exam, ...exams];
-        localStorage.setItem(EXAM_STORAGE_KEY, JSON.stringify(updatedExams));
-        setExams(updatedExams);
+    const generateMaterial = async (configuration, type) => {
+        const { material } = await apiRequest("/study-materials/generate", {
+            method: "POST",
+            body: JSON.stringify({ ...configuration, type }),
+        });
+        if (type === "flashcards") setDecks((currentDecks) => [material, ...currentDecks]);
+        else setExams((currentExams) => [material, ...currentExams]);
         setModalOpen(false);
-        setActiveItem({ mode: "mock-exams", item: exam });
+        navigate(`/${type}/${encodeURIComponent(material.id)}`);
     };
 
-    const dateLabel = (value) => {
-        const date = new Date(value);
-        return Number.isNaN(date.getTime()) ? "Saved study material" : `Created ${date.toLocaleDateString()}`;
+    const deleteMaterial = async () => {
+        if (!deleteItem || deleting) return;
+        setDeleting(true);
+        setDeleteError("");
+        try {
+            await apiRequest(`/study-materials/${encodeURIComponent(deleteItem.id)}`, { method: "DELETE" });
+            if (deleteItem.type === "flashcards") {
+                setDecks((currentDecks) => currentDecks.filter((deck) => deck.id !== deleteItem.id));
+            } else {
+                setExams((currentExams) => currentExams.filter((exam) => exam.id !== deleteItem.id));
+            }
+            setDeleteItem(null);
+            toast.success("Study material deleted.");
+        } catch (error) {
+            setDeleteError(error.message);
+        } finally {
+            setDeleting(false);
+        }
     };
 
     return (
-        <div className={`mx-auto max-w-5xl space-y-8 ${styles.primaryText}`}>
-            <header className={`border-b pb-6 ${styles.border}`}>
-                <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
-                    <div>
-                        <h1 className="font-serif text:2xl sm:text-3xl font-semibold md:text-4xl">Study tools</h1>
-                        <p className={`mt-2 text-sm ${styles.secondaryText}`}>Pick up where you left off or choose a new session.</p>
-                    </div>
-                    <button
-                        type="button"
-                        disabled={notesLoading || !notes.length}
-                        onClick={() => setModalOpen(true)}
-                        className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium ${styles.buttonBlue}`}
-                    >
-                        <Plus className="h-4 w-4" />
-                        {isFlashcards ? "Create a deck" : "Create Mock Exam"}
-                    </button>
-                </div>
+        <div className={`mx-auto space-y-4 ${styles.primaryText}`}>
+            <header className={`border-b pb-4 sm:pb-6 ${styles.border}`}>
+                <h1 className="font-serif text-2xl font-semibold sm:text-3xl md:text-4xl">
+                    Study Tools
+                </h1>
+                <p className={`mt-2 text-sm ${styles.secondaryText}`}>
+                    Generate flashcard decks and mock exams from your notes to help you study and retain information.
+                </p>
             </header>
 
-            {notesError && (
-                <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600">
-                    {notesError}
-                </p>
-            )}
-            {!notesLoading && !notes.length && !notesError && (
-                <p className={`rounded-lg border px-4 py-3 text-sm ${styles.border} ${styles.secondaryText}`}>
-                    Create a note in one of your notebooks before generating study materials. <Link to="/home" className={styles.blueText}>Go to notebooks</Link>
-                </p>
-            )}
-
+        
+         
             <section aria-label="Study materials">
-                <div className={`flex gap-6 border-b ${styles.border}`} role="tablist" aria-label="Study tools">
-                    {tabs.map((tab) => (
-                        <button
-                            key={tab.id}
-                            type="button"
-                            role="tab"
-                            id={`study-tools-tab-${tab.id}`}
-                            aria-controls="study-tools-panel"
-                            aria-selected={activeTab === tab.id}
-                            onClick={() => setSearchParams({ tab: tab.id })}
-                            className={`-mb-px border-b-2 py-3 text-sm transition ${
-                                activeTab === tab.id
-                                    ? "border-blue-600 font-medium text-blue-600"
-                                    : `border-transparent ${styles.secondaryText}`
-                            }`}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div
+                        className={`inline-flex w-fit items-center rounded-lg border ${styles.border} ${styles.secondaryBg}`}
+                        role="tablist"
+                        aria-label="Study tools"
+                    >
+                        {[
+                            { id: "flashcards", label: "Flashcards", Icon: BookOpen },
+                            { id: "mock-exams", label: "Mock exams", Icon: ClipboardCheck },
+                        ].map(({ id, label, Icon }, index) => (
+                            <button
+                                key={id}
+                                type="button"
+                                role="tab"
+                                id={`study-tools-tab-${id}`}
+                                aria-controls="study-tools-panel"
+                                aria-selected={activeTab === id}
+                                onClick={() => navigate(location.pathname, {
+                                    replace: true,
+                                    state: { ...locationState, tab: id },
+                                })}
+                                className={`inline-flex  items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                                    index === 0 ? "rounded-l-lg" : ""
+                                } ${
+                                    index === 1 ? "rounded-r-lg" : ""
+                                } ${styles.studyFocusRing} ${
+                                    activeTab === id
+                                        ? darkMode
+                                            ? `${styles.blueBg2}`
+                                            : "bg-white text-gray-900 shadow-sm"
+                                        : `${styles.secondaryText} ${styles.secondaryBgHover} cursor-pointer`
+                                }`}
+                            >
+                                <Icon className="h-3 w-3" aria-hidden="true" />
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <label className="sr-only" htmlFor="study-tools-sort">Sort study materials</label>
+                        <select
+                            id="study-tools-sort"
+                            value={sortOrder}
+                            onChange={(event) => setSortOrder(event.target.value)}
+                            className={`rounded-lg border px-3 py-1.5 text-sm ${styles.input} ${styles.border}`}
                         >
-                            {tab.label}
+                            <option value="recent">Recent</option>
+                            <option value="oldest">Oldest</option>
+                            <option value="title">A to Z</option>
+                            <option value="title-desc">Z to A</option>
+                        </select>
+                        <button
+                            type="button"
+                            disabled={!canCreate}
+                            onClick={() => setModalOpen(true)}
+                            className={`inline-flex  items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium disabled:cursor-not-allowed ${styles.blueBg2} ${styles.blueBg2hover}`}
+                        >
+                            <BadgePlus className="h-4 w-4" aria-hidden="true" />
+                            {activeTab === "flashcards" ? "Create Deck" : "Create Exam"}
                         </button>
-                    ))}
+                    </div>
                 </div>
 
                 <div
                     id="study-tools-panel"
                     role="tabpanel"
                     aria-labelledby={`study-tools-tab-${activeTab}`}
-                    className={`divide-y ${styles.divide}`}
+                    className="mt-4"
                 >
-                    {materials.length ? materials.map((item) => (
-                        <article key={item.id} className="flex flex-wrap items-center gap-4 py-4 sm:flex-nowrap">
-                            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${styles.grayBg} ${styles.secondaryText}`}>
-                                <ItemIcon className="h-5 w-5" aria-hidden="true" />
-                            </span>
-                            <div className="min-w-0 flex-1">
-                                <h2 className="truncate text-sm font-medium">{item.title}</h2>
-                                <p className={`mt-1 text-sm ${styles.secondaryText}`}>
-                                    {isFlashcards ? `${item.cards.length} cards` : `${item.questions.length} questions`} <span aria-hidden="true">·</span> {dateLabel(item.createdAt)}
+                    {notesLoading ? (
+                        <div
+                            role="status"
+                            aria-label="Loading study materials"
+                            className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3"
+                        >
+                            <span className="sr-only">Loading study materials...</span>
+                            {Array.from({ length: 3 }, (_, index) => (
+                                <div
+                                    key={index}
+                                    aria-hidden="true"
+                                    className={`min-h-[150px] rounded-xl border p-4 ${styles.border} ${styles.secondaryBg}`}
+                                >
+                                    <div className="animate-pulse">
+                                        <div className={`h-3 w-24 rounded ${skeletonFill}`} />
+                                        <div className={`mt-3 h-4 w-3/4 rounded ${skeletonFill}`} />
+                                        <div className={`mt-2 h-3 w-1/2 rounded ${skeletonFill}`} />
+                                        <div className={`mt-7 h-6 w-20 rounded-full ${skeletonFill}`} />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : notesError ? (
+                        <div
+                            role="alert"
+                            className={`rounded-xl border p-4 text-sm ${styles.border} ${styles.secondaryBg} ${styles.studyDanger}`}
+                        >
+                            {notesError}
+                        </div>
+                    ) : sortedMaterials.length ? (
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                            {sortedMaterials.map((item) => {
+                                const notebook = notebooks.find((entry) => entry.id === item.sourceNotebookId);
+                                const count = activeTab === "flashcards"
+                                    ? `${item.cards.length} cards`
+                                    : `${item.questions.length} questions`;
+                                return (
+                                    
+                                    <Link
+                                        key={item.id}
+                                        to={`/${activeTab}/${encodeURIComponent(item.id)}`}
+                                        className={`relative flex min-h-[150px] flex-col justify-between gap-5 rounded-xl border p-4 shadow-sm transition-shadow hover:shadow-md ${styles.border} ${styles.secondaryBg}`}
+                                    >
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="min-w-0 flex-1">
+                                                <p className={`mb-1 text-[10px] font-semibold uppercase tracking-wider ${styles.studyMutedText}`}>
+                                                    {activeTab === "flashcards" ? "Flashcard deck" : "Mock exam"}
+                                                </p>
+
+                                                <h1 className="block truncate text-sm font-semibold sm:text-base">
+                                                    {item.title}
+                                                </h1>
+
+                                                <p className={`mt-2 min-w-0 truncate text-xs ${styles.studyMutedText}`}>
+                                                    {notebook?.name || "Source unavailable"}
+                                                </p>
+                                            </div>
+
+                                            {/* Dropdown menu */}
+                                            <div
+                                                ref={menuItemId === item.id ? itemMenuRef : null}
+                                                className="relative z-20 shrink-0"
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                }}
+                                            >
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+
+                                                        setMenuItemId((current) =>
+                                                            current === item.id ? null : item.id
+                                                        );
+                                                    }}
+                                                    aria-label={`More actions for ${item.title}`}
+                                                    aria-haspopup="menu"
+                                                    aria-expanded={menuItemId === item.id}
+                                                    className={`flex cursor-pointer items-center justify-center rounded-md p-1 ${styles.secondaryText} ${styles.headerHover} ${styles.studyFocusRing}`}
+                                                >
+                                                    <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                                                </button>
+
+                                                {menuItemId === item.id && (
+                                                    <div
+                                                        role="menu"
+                                                        className={`absolute right-0 top-full z-50 mt-1 min-w-32 rounded-lg border p-1 shadow-lg ${styles.border} ${styles.secondaryBg}`}
+                                                    >
+                                                        <button
+                                                            type="button"
+                                                            role="menuitem"
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+
+                                                                setDeleteError("");
+                                                                setDeleteItem({
+                                                                    ...item,
+                                                                    type: item.type || activeTab,
+                                                                });
+
+                                                                setMenuItemId(null);
+                                                            }}
+                                                            className={`w-full rounded-md px-3 py-2 text-left text-xs ${styles.secondaryBgHover} ${styles.primaryText}`}
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex min-w-0 items-center gap-2">
+                                            <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-medium ${styles.border} ${styles.secondaryText}`}>
+                                                {count}
+                                            </span>
+                                        </div>
+                                    </Link>
+
+                                );
+                            })}
+                        </div>
+                    ) : notesLoading ? null : (
+                        <div className={`flex min-h-[250px] w-full items-center justify-center text-center gap-3 rounded-xl border border-dashed px-4 py-3 ${styles.border} ${styles.secondaryBg}`}>
+                            <div className="min-w-0">
+                                <h2 className="text-base sm:text-lg  font-semibold">
+                                    {activeTab === "flashcards" ? "No flashcard decks yet" : "No mock exams yet"}
+                                </h2>
+                                <p className={`mt-2 max-w-md text-sm  ${styles.secondaryText}`}>
+                                    Create a note in one of your notebooks before generating study materials. <Link to="/home" className={`${styles.blueText} ${styles.studyFocusRing}`}>Go to notebooks</Link>
                                 </p>
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => setActiveItem({ mode: activeTab, item })}
-                                className={`inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700`}
-                            >
-                                {isFlashcards ? "Study deck" : "Begin exam"}
-                                <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                            </button>
-                        </article>
-                    )) : (
-                        <div className="py-16 text-center">
-                            <span className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full ${styles.grayBg} ${styles.blueText}`}>
-                                <ItemIcon className="h-6 w-6" aria-hidden="true" />
-                            </span>
-                            <h2 className="mt-4 font-medium">{isFlashcards ? "Your flashcard library is ready" : "Your mock exam library is ready"}</h2>
-                            <p className={`mx-auto mt-2 max-w-md text-sm ${styles.secondaryText}`}>
-                                Create study material from your own notes and choose exactly which topics to include.
-                            </p>
-                            <button
-                                type="button"
-                                disabled={notesLoading || !notes.length}
-                                onClick={() => setModalOpen(true)}
-                                className={`mt-5 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${styles.buttonBlue}`}
-                            >
-                                <Plus className="h-4 w-4" />
-                                {isFlashcards ? "Create a deck" : "Create Mock Exam"}
-                            </button>
                         </div>
                     )}
                 </div>
             </section>
 
             {modalOpen && (
-                <StudyToolsModal
-                    mode={activeTab}
-                    notes={notes}
-                    onClose={() => setModalOpen(false)}
-                    onGenerate={generateMaterial}
-                />
+                activeTab === "flashcards" ? (
+                    <FlashCardModal
+                        notes={notes}
+                        notebooks={notebooks}
+                        onClose={() => setModalOpen(false)}
+                        onGenerate={(configuration) => generateMaterial(configuration, "flashcards")}
+                    />
+                ) : (
+                    <MockExamModal
+                        notes={notes}
+                        notebooks={notebooks}
+                        onClose={() => setModalOpen(false)}
+                        onGenerate={(configuration) => generateMaterial(configuration, "mock-exams")}
+                    />
+                )
             )}
-            {activeItem && (
-                <StudyMaterialViewer
-                    key={activeItem.item.id}
-                    mode={activeItem.mode}
-                    item={activeItem.item}
-                    onClose={() => setActiveItem(null)}
-                    styles={styles}
-                />
+
+            {deleteItem && (
+                <div
+                    className="modal-overlay"
+                    role="presentation"
+                    onMouseDown={(event) => {
+                        if (event.target === event.currentTarget && !deleting) setDeleteItem(null);
+                    }}
+                >
+                    <div
+                        ref={deleteDialogRef}
+                        tabIndex={-1}
+                        role="alertdialog"
+                        aria-modal="true"
+                        aria-labelledby="delete-material-title"
+                        aria-describedby="delete-material-description"
+                        className={`w-full max-w-sm rounded-xl border p-5 ${styles.border} ${styles.secondaryBg} ${styles.shadow}`}
+                    >
+                        <h2 id="delete-material-title" className={`font-semibold ${styles.primaryText}`}>
+                            Delete this {deleteItem.type === "flashcards" ? "flashcard set" : "mock exam"}?
+                        </h2>
+                        <p id="delete-material-description" className={`mt-2 text-sm ${styles.secondaryText}`}>
+                            "{deleteItem.title}" will be permanently deleted. This action cannot be undone.
+                        </p>
+                        {deleteError && (
+                            <p role="alert" className={`mt-3 rounded-lg border px-3 py-2 text-sm ${styles.studyDanger}`}>{deleteError}</p>
+                        )}
+                        <div className="mt-5 flex justify-end gap-2">
+                            <button
+                                type="button"
+                                disabled={deleting}
+                                onClick={() => setDeleteItem(null)}
+                                className={`min-h-10 rounded-lg px-4 py-2 text-sm ${styles.buttonGray} ${styles.studyFocusRing}`}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                disabled={deleting}
+                                onClick={deleteMaterial}
+                                className={`min-h-10 rounded-lg px-4 py-2 text-sm ${styles.buttonRed} ${styles.studyFocusRing}`}
+                            >
+                                {deleting ? "Deleting..." : "Delete"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

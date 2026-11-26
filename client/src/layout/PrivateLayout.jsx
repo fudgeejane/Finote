@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import Styling from "../components/theme/Styling";
+import BreadCrumbs from "../components/ui/BreadCrumbs";
 import { useAuth } from "../auth/AuthContext";
 import { useDarkMode } from "../components/theme/DarkModeContext";
 import Logo from "../../../public/Finote.png";
@@ -54,12 +55,14 @@ const searchItems = [
   },
   {
     label: "Flashcards",
-    to: "/study-tools?tab=flashcards",
+    to: "/study-tools",
+    state: { tab: "flashcards" },
     description: "Review with flashcards",
   },
   {
     label: "Mock Exams",
-    to: "/study-tools?tab=mock-exams",
+    to: "/study-tools",
+    state: { tab: "mock-exams" },
     description: "Prepare with a mock exam",
   },
   {
@@ -159,8 +162,8 @@ export default function PrivateLayout() {
     "Account";
 
   return (
-     <div className={`flex min-h-dvh flex-col ${styles.sidebarCanvasBg} ${styles.primaryText} ${styles.themeTransition}`}>
-      <header className={`sticky top-0 z-40 border-b ${styles.sidebarBg} ${styles.border} ${styles.themeTransition}`}>
+     <div className={`flex min-h-dvh flex-col ${styles.primaryBg} ${styles.primaryText} ${styles.themeTransition}`}>
+      <header className={`sticky top-0 z-40 border-b ${styles.headerBg} ${styles.border} ${styles.themeTransition}`}>
         <div className="mx-auto flex min-h-16 max-w-7xl items-center justify-between gap-3 px-4 ">
           <div className="flex min-w-0 items-center gap-2 sm:gap-4">
             <Link to="/home" className="flex shrink-0 items-center gap-2">
@@ -180,7 +183,7 @@ export default function PrivateLayout() {
                 setSearchOpen(true);
               }}
               aria-label="Search workspace"
-              className={`flex h-9 w-9 shrink-0 items-center justify-center gap-2 rounded-full border sm:w-52 sm:justify-start sm:px-3 md:w-60 ${styles.border} ${styles.sidebarBg} ${styles.sidebarMutedText} ${styles.sidebarTextHover} ${styles.themeTransition}`}
+              className={`flex h-9 w-9 shrink-0 items-center justify-center gap-2 rounded-full border sm:w-52 sm:justify-start sm:px-3 md:w-60 ${styles.border} ${styles.secondaryBg} ${styles.sidebarMutedText} ${styles.sidebarTextHover} ${styles.themeTransition}`}
             >
               <Search className="h-4 w-4 shrink-0" />
               <span className="hidden min-w-0 flex-1 truncate text-left text-xs sm:inline">
@@ -255,7 +258,7 @@ export default function PrivateLayout() {
               {profileMenuOpen && (
                 <div
                   id="profile-menu"
-                  className={`absolute right-0 top-full z-50 mt-2 max-h-[calc(100dvh-5rem)] w-64 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border shadow-xl ${styles.border} ${styles.sidebarBg} ${styles.sidebarText} ${styles.themeTransition}`}
+                  className={`absolute right-0 top-full z-50 mt-2 max-h-[calc(100dvh-5rem)] w-64 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border shadow-xl ${styles.border} ${styles.secondaryBg} ${styles.sidebarText} ${styles.themeTransition}`}
                 >
                   <div className="flex min-w-0 items-center gap-3 px-4 pt-4">
                     
@@ -378,17 +381,18 @@ export default function PrivateLayout() {
                   searchTriggerRef.current?.focus();
                 }}
                 aria-label="Close search"
-                className={`rounded-md p-1.5 ${styles.headerNavText} ${styles.secondaryBgHover}`}
+                className={`rounded-md p-1.5 ${styles.secondaryBg} ${styles.secondaryBgHover}`}
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
             <div className="max-h-[55vh] overflow-y-auto p-2">
               {filteredSearchItems.length ? (
-                filteredSearchItems.map(({ label, to, description }) => (
+                filteredSearchItems.map(({ label, to, state, description }) => (
                   <Link
                     key={label}
                     to={to}
+                    state={state}
                     onClick={() => setSearchOpen(false)}
                     className={`flex flex-col rounded-lg px-3 py-2.5 ${styles.secondaryBgHover}`}
                   >
@@ -413,7 +417,8 @@ export default function PrivateLayout() {
           </section>
         </div>
       )}
-      <main className={`mx-auto w-full min-w-0 max-w-7xl flex-1 p-4 sm:p-6 lg:p-8 ${styles.themeTransition}`}>        
+      <main className={`mx-auto w-full min-w-0 max-w-5xl flex-1 p-4 sm:p-6  ${styles.themeTransition}`}>        
+        <BreadCrumbs />
         <Outlet />
       </main>
     </div>

@@ -1,7 +1,3 @@
-export const NOTES_STORAGE_KEY = "finote.notes";
-export const FLASHCARD_STORAGE_KEY = "finote.flashcardDecks";
-export const EXAM_STORAGE_KEY = "finote.mockExams";
-
 export const QUESTION_TYPES = [
     "Multiple Choice",
     "True or False",
@@ -15,14 +11,6 @@ export const QUESTION_TYPES = [
     "Situational Questions",
     "Other",
 ];
-
-export function readStoredItems(key) {
-    const stored = localStorage.getItem(key);
-    if (!stored) return [];
-    const parsed = JSON.parse(stored);
-    if (!Array.isArray(parsed)) throw new Error(`Saved data for ${key} is invalid.`);
-    return parsed;
-}
 
 export function getNoteSections(note) {
     const container = document.createElement("div");

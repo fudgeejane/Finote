@@ -50,13 +50,17 @@ The rich-text editor UI uses browser content editing in `NotesPage.jsx`; Editor.
 | dotenv | Environment variable loading |
 | Nodemon | Backend development process |
 
+### AI study tools
+
+On Gemini capacity errors, study-material generation retries the configured model up to three times with backoff, honors `Retry-After` (capped at 10 seconds), then tries `gemini-3.6-flash`, `gemini-3.1-flash-lite`, and `gemini-3.5-flash-lite`. If all models are unavailable, users receive a friendly retry message and their form selections remain intact.
+
 ### Authentication
 
 `client/src/auth/AuthContext.jsx` restores sessions from an HTTP-only refresh cookie and keeps access tokens in memory. `RouteGuards.jsx` protects workspace routes and redirects signed-in users away from public pages. The auth modal calls `/api/auth` for registration, email verification, login, code resend, and password recovery. After verification, users sign in and complete their profile through `/api/users/complete-profile` before entering the workspace.
 
 The API stores password and one-time-code hashes, expires verification and reset codes, rotates refresh tokens, revokes sessions on password reset, and rate-limits sensitive auth requests. Refresh cookies are scoped to `/api/auth`; configure `COOKIE_SECURE=true` when serving over HTTPS.
 
-Set the following values in `server/.env`: `MONGODB_URI`, `CODE_PEPPER`, `JWT_ACCESS_SECRET`, `EMAIL_USER`, and `EMAIL_PASS`. Profile picture uploads also require `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET`. Optional cookie/session settings include `COOKIE_NAME`, `COOKIE_SECURE`, `COOKIE_SAME_SITE`, `JWT_ACCESS_TTL`, `REFRESH_TOKEN_DAYS`, and `REMEMBER_ME_DAYS`. Set `CLIENT_URL` to the deployed frontend origin. For local Vite development, the `/api` proxy targets `http://localhost:5000`; override it with `VITE_API_PROXY` if needed. Set `VITE_API_URL` in the frontend when the deployed API is hosted on a different origin.
+Set the following values in `server/.env`: `MONGODB_URI`, `CODE_PEPPER`, `JWT_ACCESS_SECRET`, `EMAIL_USER`, and `EMAIL_PASS`. AI mock exams and flashcards also require the server-only `GEMINI_API_KEY`; `GEMINI_MODEL` defaults to `gemini-3.8-flash` and automatically falls back to `gemini-3.5-flash-lite` on capacity errors. Override these with `GEMINI_MODEL` or `GEMINI_FALLBACK_MODEL` if needed. Profile picture uploads also require `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET`. Optional cookie/session settings include `COOKIE_NAME`, `COOKIE_SECURE`, `COOKIE_SAME_SITE`, `JWT_ACCESS_TTL`, `REFRESH_TOKEN_DAYS`, and `REMEMBER_ME_DAYS`. Set `CLIENT_URL` to the deployed frontend origin. For local Vite development, the `/api` proxy targets `http://localhost:5000`; override it with `VITE_API_PROXY` if needed. Set `VITE_API_URL` in the frontend when the deployed API is hosted on a different origin.
 
 Address lookup uses explicit searches against the public Nominatim service, with attribution, in-process caching, and a one-request-per-second queue. Run this API as a single instance to respect the [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/); use a managed or self-hosted geocoder before scaling to multiple instances.
 

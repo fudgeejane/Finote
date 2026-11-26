@@ -22,6 +22,51 @@
     transition-duration: 350ms;
     transition-timing-function: ease-in-out;
   }
+
+  .study-tools-motion,
+  .study-tools-motion *,
+  .study-tools-motion *::before,
+  .study-tools-motion *::after {
+    transition-duration: 180ms;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .study-tools-motion *,
+  .study-tools-motion *::before,
+  .study-tools-motion *::after {
+    transition-duration: 0.01ms;
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    scroll-behavior: auto;
+  }
+}
+
+@keyframes flashcard-flip-to-back {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(180deg); }
+}
+
+@keyframes flashcard-flip-to-front {
+  from { transform: rotateY(180deg); }
+  to { transform: rotateY(0deg); }
+}
+
+.flashcard-flipper-back {
+  transform: rotateY(180deg);
+  animation: flashcard-flip-to-back 420ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+.flashcard-flipper-front {
+  transform: rotateY(0deg);
+  animation: flashcard-flip-to-front 420ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flashcard-flipper-back,
+  .flashcard-flipper-front {
+    animation: none;
+  }
 }
 
 .schedule-layout {

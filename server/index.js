@@ -1,10 +1,13 @@
 
-require("dotenv").config();
+const path = require("path");
+
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 const AuthRoutes = require("./routes/AuthRoutes")
 const UserRoutes = require("./routes/UserRoutes");
 const NotebookRoutes = require("./routes/NotebookRoutes");
 const NoteRoutes = require("./routes/NoteRoutes");
+const StudyMaterialRoutes = require("./routes/StudyMaterialRoutes");
 
 const express = require("express");
 const cors = require("cors");
@@ -30,6 +33,9 @@ app.get("/api/health", (req, res) => {
     status: "ok",
     database:
       mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+    aiGeneration: process.env.GEMINI_API_KEY?.trim()
+      ? "configured"
+      : "not configured",
   });
 });
 
@@ -73,6 +79,7 @@ app.use("/api/auth", AuthRoutes);
 app.use("/api/users", UserRoutes);
 app.use("/api/notebooks", NotebookRoutes);
 app.use("/api/notes", NoteRoutes);
+app.use("/api/study-materials", StudyMaterialRoutes);
 
 app.use((error, req, res, next) => {
   if (error.type === "entity.parse.failed") {
