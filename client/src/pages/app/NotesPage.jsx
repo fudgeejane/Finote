@@ -20,8 +20,8 @@ import {
 import Styling from "../../components/theme/Styling";
 import { useDarkMode } from "../../components/theme/DarkModeContext";
 import { useAuth } from "../../auth/AuthContext";
-import NoteTableControls from "../../components/utils/components/NoteTableControls";
-import useDialogFocus from "../../components/utils/useDialogFocus";
+import NoteTableControls from "../../components/utils/notes/NoteTableControls";
+import useDialogFocus from "../../components/utils/study tools/useDialogFocus";
 import {
     clearListItemIndent,
     cleanEditorHtml,
@@ -34,7 +34,7 @@ import {
     stripTableUi,
     syncListStyles,
     textFromHtml,
-} from "../../components/utils/components/noteEditorUtils";
+} from "../../components/utils/notes/noteEditorUtils";
 
 const typingInputTypes = new Set([
     "insertText",

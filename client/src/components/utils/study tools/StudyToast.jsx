@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 import toast from "react-hot-toast";
-import Styling from "../theme/Styling";
+import Styling from "../../theme/Styling";
 
 export default function StudyToast({ toastId, message, kind, actionLabel, onAction }) {
     const styles = Styling();

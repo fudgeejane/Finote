@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Link, useBlocker, useParams } from "react-router-dom";
 import Styling from "../../components/theme/Styling";
-import useDialogFocus from "../../components/utils/useDialogFocus";
+import useDialogFocus from "../../components/utils/study tools/useDialogFocus";
 import { useAuth } from "../../auth/AuthContext";
 
 const normalizeAnswer = (value) =>

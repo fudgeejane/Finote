@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Trash2, X } from "lucide-react";
-import Styling from "../theme/Styling";
+import Styling from "../../theme/Styling";
 
 export default function NotebookModal({ mode, notebook, onClose, onSubmit, onDelete, busy = false, error = "" }) {
     const styles = Styling();

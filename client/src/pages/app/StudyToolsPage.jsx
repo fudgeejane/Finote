@@ -3,9 +3,9 @@ import { BookOpen, ClipboardCheck, Layers3, MoreHorizontal, BadgePlus } from "lu
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Styling from "../../components/theme/Styling";
 import { useDarkMode } from "../../components/theme/DarkModeContext";
-import FlashCardModal from "../../components/utils/FlashCardModal";
-import MockExamModal from "../../components/utils/MockExamModal";
-import useDialogFocus from "../../components/utils/useDialogFocus";
+import FlashCardModal from "../../components/utils/study tools/FlashCardModal";
+import MockExamModal from "../../components/utils/study tools/MockExamModal";
+import useDialogFocus from "../../components/utils/study tools/useDialogFocus";
 import { useAuth } from "../../auth/AuthContext";
 import toast from "react-hot-toast";
 

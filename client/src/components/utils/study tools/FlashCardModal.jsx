@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
 import { LoaderCircle, X } from "lucide-react";
-import Styling from "../theme/Styling";
+import Styling from "../../theme/Styling";
 import StudyNotePicker from "./StudyNotePicker";
-import showStudyToast from "./studyToast";
+import showStudyToast from "./StudyToast";
 import useDialogFocus from "./useDialogFocus";
 
 export default function FlashCardModal({ notes, notebooks, onClose, onGenerate }) {

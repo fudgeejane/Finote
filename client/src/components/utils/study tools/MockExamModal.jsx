@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
 import { LoaderCircle, Minus, Plus, X } from "lucide-react";
-import Styling from "../theme/Styling";
+import Styling from "../../theme/Styling";
 import StudyNotePicker from "./StudyNotePicker";
-import showStudyToast from "./studyToast";
+import showStudyToast from "./StudyToast";
 import useDialogFocus from "./useDialogFocus";
 
 const QUESTION_PRESETS = [5, 10, 20, 30];

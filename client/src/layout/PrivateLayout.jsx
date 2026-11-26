@@ -204,7 +204,7 @@ export default function PrivateLayout() {
                 aria-label="Notifications"
                 aria-expanded={notificationsOpen}
                 aria-controls="notifications-panel"
-                className={`relative flex h-9 w-9 items-center justify-center rounded-full border transition-colors ${styles.border} ${styles.sidebarMutedText} ${styles.sidebarActiveHover}`}
+                className={`relative flex h-9 w-9 items-center justify-center rounded-full border transition-colors ${styles.border} ${styles.secondaryBg} ${styles.secondaryBgHover}`}
               >
                 <Bell className="h-4 w-4" />
                 <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-rose-500" />
@@ -214,7 +214,7 @@ export default function PrivateLayout() {
                   id="notifications-panel"
                   role="dialog"
                   aria-label="Notifications"
-                  className={`absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-xl border p-4 shadow-xl ${styles.border} ${styles.sidebarBg} ${styles.sidebarText} ${styles.themeTransition}`}
+                  className={`absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-lg border p-4 shadow-xl ${styles.border} ${styles.secondaryBg}`}
                 >
                   <p className="font-semibold">Notifications</p>
                   <p className={`mt-2 text-sm ${styles.sidebarMutedText}`}>
@@ -417,7 +417,7 @@ export default function PrivateLayout() {
           </section>
         </div>
       )}
-      <main className={`mx-auto w-full min-w-0 max-w-5xl flex-1 p-4 sm:p-6  ${styles.themeTransition}`}>        
+      <main className={`mx-auto w-full min-w-0 max-w-7xl flex-1 p-4  ${styles.themeTransition}`}>        
         <BreadCrumbs />
         <Outlet />
       </main>

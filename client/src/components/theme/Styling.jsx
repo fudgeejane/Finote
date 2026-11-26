@@ -163,7 +163,7 @@ export default function Styling() {
       ? 'hover:bg-purple-500/10 hover:border-purple-900 cursor-pointer'
       : 'hover:bg-purple-200/50 hover:border-purple-300 cursor-pointer',
     redBg2Hover: darkMode
-      ? 'hover:bg-red-500/30 hover:border-red-900 cursor-pointer'
+      ? 'hover:bg-red-500/50 hover:border-red-900 cursor-pointer'
       : 'hover:bg-red-200/50 hover:border-red-300 cursor-pointer',
     greenBg2Hover: darkMode
       ? 'hover:bg-green-500/10 hover:border-green-900 cursor-pointer'

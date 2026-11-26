@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Search } from "lucide-react";
-import Styling from "../theme/Styling";
+import Styling from "../../theme/Styling";
 
 const SEARCH_THRESHOLD = 8;
 

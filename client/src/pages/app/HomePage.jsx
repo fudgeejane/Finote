@@ -7,7 +7,7 @@ import {
     ArrowUpDown,
 } from "lucide-react";
 import Styling from "../../components/theme/Styling";
-import NotebookModal from "../../components/utils/NotebookModal";
+import NotebookModal from "../../components/utils/notes/NotebookModal";
 import { useAuth } from "../../auth/AuthContext";
 
 const MIN_NOTEBOOK_LOADING_MS = 2000;
