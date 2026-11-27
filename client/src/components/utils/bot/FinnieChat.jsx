@@ -15,7 +15,7 @@ function ResponseText({ text }) {
 
 export default function FinnieChat() {
   const styles = Styling();
-  const { apiRequest } = useAuth();
+  const { apiRequest, user } = useAuth();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
@@ -26,6 +26,16 @@ export default function FinnieChat() {
   const inputRef = useRef(null);
   const chatPanelRef = useRef(null);
   const launcherRef = useRef(null);
+
+  // Finnie's conversation is session-only. Clear it as soon as authentication
+  // ends, even if this component is ever kept mounted across route changes.
+  useEffect(() => {
+    if (user) return;
+    setMessages([]);
+    setDraft("");
+    setError("");
+    setOpen(false);
+  }, [user]);
 
   useEffect(() => {
     if (open) {

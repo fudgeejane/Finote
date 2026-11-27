@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { LoaderCircle, Minus, Plus, X } from "lucide-react";
 import Styling from "../../theme/Styling";
 import StudyNotePicker from "./StudyNotePicker";
-import showStudyToast from "./StudyToast";
+import showStudyToast from "./studyToast.js";
 import useDialogFocus from "./useDialogFocus";
 
 const QUESTION_PRESETS = [5, 10, 20, 30];
@@ -222,16 +222,21 @@ export default function MockExamModal({ notes, notebooks, onClose, onGenerate })
                             </p>
                         )}
                         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                            <button type="button" onClick={onClose} disabled={loading} className={`min-h-11 px-4 py-2 text-sm ${styles.studyGhostButton} ${styles.studyFocusRing}`}>
+                            <button 
+                                type="button" 
+                                onClick={onClose} 
+                                disabled={loading} 
+                                className={`rounded-lg px-4 py-2 text-xs ${styles.buttonFrost}`}
+                            >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
                                 disabled={loading || !canGenerate}
-                                className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors duration-150 motion-reduce:transition-none ${styles.studyPrimaryButton} ${styles.studyFocusRing}`}
+                                className={`rounded-lg px-4 py-2 text-xs flex items-center gap-2 ${styles.buttonPrimary}`}
                             >
                                 {loading && <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />}
-                                {loading ? `Generating  Mock  Exam...` : "Generate mock exam"}
+                                {loading ? `Generating  Mock  Exam...` : "Generate Mock Exam"}
                             </button>
                         </div>
                         {!canGenerate && (

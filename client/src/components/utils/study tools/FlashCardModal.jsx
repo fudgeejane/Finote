@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { LoaderCircle, X } from "lucide-react";
 import Styling from "../../theme/Styling";
 import StudyNotePicker from "./StudyNotePicker";
-import showStudyToast from "./StudyToast";
+import showStudyToast from "./studyToast.js";
 import useDialogFocus from "./useDialogFocus";
 
 export default function FlashCardModal({ notes, notebooks, onClose, onGenerate }) {
@@ -68,7 +68,7 @@ export default function FlashCardModal({ notes, notebooks, onClose, onGenerate }
         }
     };
 
-    const inputClass = `mt-1.5 w-full rounded-lg border px-3 py-2.5 text-sm ${styles.studyInput}`;
+    const inputClass = `mt-1.5 w-full rounded-lg border px-3 py-2.5 text-sm ${styles.input}`;
 
     return (
         <div
@@ -152,35 +152,44 @@ export default function FlashCardModal({ notes, notebooks, onClose, onGenerate }
                                 rows={3}
                                 maxLength={1000}
                                 placeholder="e.g. Focus on important definitions and key concepts."
-                                className={`${inputClass} ${styles.studyPlaceholder}`}
+                                className={`${inputClass} resize-none`}
                             />
                         </label>
                     </div>
 
-                    <footer className={`border-t p-4 ${styles.border}`}>
+                    <footer className={`border-t px-4 py-3 flex items-center gap-2 justify-between ${styles.border}`}>
                         {generationError && (
                             <p role="alert" className={`mb-3 rounded-lg border px-3 py-2 text-sm ${styles.studyDanger}`}>
                                 {generationError}
                             </p>
                         )}
-                        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                            <button type="button" onClick={onClose} disabled={loading} className={`min-h-11 px-4 py-2 text-sm ${styles.studyGhostButton} ${styles.studyFocusRing}`}>
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={loading || !canGenerate}
-                                className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors duration-150 motion-reduce:transition-none ${styles.studyPrimaryButton} ${styles.studyFocusRing}`}
-                            >
-                                {loading && <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />}
-                                {loading ? "Generating flashcards..." : "Generate flashcards"}
-                            </button>
-                        </div>
+
                         {!canGenerate && (
                             <p className={`mt-2 text-right text-xs ${styles.studyMutedText}`}>
                                 {selectedNoteIds.length ? validationMessage : "Select at least one note"}
                             </p>
                         )}
+
+                        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                            
+                            <button 
+                                type="button" 
+                                onClick={onClose} 
+                                disabled={loading} 
+                                className={`rounded-lg px-4 py-2 text-xs ${styles.buttonFrost}`}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={loading || !canGenerate}
+                                className={`rounded-lg px-4 py-2 text-xs ${styles.buttonPrimary}`}
+                            >
+                                {loading && <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                                {loading ? "Generating flashcards..." : "Generate flashcards"}
+                            </button>
+                        </div>
+                        
                     </footer>
                 </form>
             </section>

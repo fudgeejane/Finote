@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import toast from "react-hot-toast";
-import StudyToast from "./studyToast";
+import StudyToast from "./StudyToast.jsx";
 
 export default function showStudyToast(message, options = {}) {
     return toast.custom((item) => createElement(StudyToast, {
