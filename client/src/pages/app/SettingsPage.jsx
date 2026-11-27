@@ -120,7 +120,10 @@ export default function SettingsPage() {
     const searchInputRef = useRef(null);
 
     useEffect(() => {
-        if (location.state?.section) setActiveSection(location.state.section);
+        const section = location.state?.section;
+        if (!section) return undefined;
+        const timer = window.setTimeout(() => setActiveSection(section), 0);
+        return () => window.clearTimeout(timer);
     }, [location.state]);
 
     useEffect(() => {

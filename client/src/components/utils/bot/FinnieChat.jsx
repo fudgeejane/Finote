@@ -176,7 +176,7 @@ export default function FinnieChat() {
           type="button" 
           onClick={() => setOpen(true)} 
           aria-label="Open Finnie chat" 
-          className={`fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-[60] flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border shadow-lg ring-1 ring-black/10 transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-600 sm:bottom-6 sm:right-6 cursor-pointer ${styles.secondaryBgHover} ${styles.secondaryBg} ${styles.border}`}>
+          className={`fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-[60] flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border shadow-lg ring-1 ring-black/10 transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-600 sm:bottom-6 sm:right-6 cursor-pointer ${styles.secondaryBgHover} ${styles.secondaryBg} ${styles.blueBorder}`}>
           <img src={FinnieIcon} alt="" className="h-10 w-auto object-cover" />
         </button>
       )}

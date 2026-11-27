@@ -2,6 +2,7 @@ const express = require("express");
 const RequireAuth = require("../middlewares/RequireAuth");
 const {
   generate,
+  formatNote,
   getById,
   list,
   remove,
@@ -19,6 +20,7 @@ router.use(RequireAuth);
 router.get("/", list);
 router.get("/:materialId", getById);
 router.post("/generate", generate);
+router.post("/format-note", formatNote);
 router.get("/:materialId/progress", readProgress);
 router.put("/:materialId/progress", saveProgress);
 router.post("/:materialId/attempts", saveAttempt);

@@ -49,6 +49,7 @@ const sessionSchema = new mongoose.Schema(
         "rotated",
         "reuse",
         "password-reset",
+        "account-deletion",
         "logout-all",
         "expired",
         null,

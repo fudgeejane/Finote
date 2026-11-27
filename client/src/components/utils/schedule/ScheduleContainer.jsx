@@ -250,7 +250,7 @@ function EmptySchedule({ styles, onAdd }) {
   );
 }
 
-function ScheduleTable({ classes, styles, subjectColor, actionButtons, onEdit }) {
+function ScheduleTable({ classes, styles, actionButtons }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[900px] text-left text-sm">

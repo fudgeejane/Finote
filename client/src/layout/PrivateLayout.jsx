@@ -107,9 +107,12 @@ export default function PrivateLayout() {
   }, [apiRequest]);
 
   useEffect(() => {
-    loadNotifications();
+    const initialLoad = window.setTimeout(loadNotifications, 0);
     const timer = window.setInterval(loadNotifications, 60_000);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearTimeout(initialLoad);
+      window.clearInterval(timer);
+    };
   }, [loadNotifications]);
 
   const markNotificationRead = async (notification) => {
@@ -186,12 +189,22 @@ export default function PrivateLayout() {
 
   useEffect(() => {
     const query = searchQuery.trim();
-    setSearchResults({});
-    setSearchError("");
-    setActiveSearchIndex(0);
-    if (!searchOpen || query.length < 2) { setSearchLoading(false); return undefined; }
+    if (!searchOpen || query.length < 2) {
+      const reset = window.setTimeout(() => {
+        setSearchResults({});
+        setSearchError("");
+        setActiveSearchIndex(0);
+        setSearchLoading(false);
+      }, 0);
+      return () => window.clearTimeout(reset);
+    }
     const controller = new AbortController();
-    setSearchLoading(true);
+    const initialize = window.setTimeout(() => {
+      setSearchResults({});
+      setSearchError("");
+      setActiveSearchIndex(0);
+      setSearchLoading(true);
+    }, 0);
     const timer = window.setTimeout(async () => {
       try {
         const response = await apiRequest(`/search?q=${encodeURIComponent(query)}`, { signal: controller.signal });
@@ -202,7 +215,7 @@ export default function PrivateLayout() {
         if (!controller.signal.aborted) setSearchLoading(false);
       }
     }, 250);
-    return () => { window.clearTimeout(timer); controller.abort(); };
+    return () => { window.clearTimeout(initialize); window.clearTimeout(timer); controller.abort(); };
   }, [apiRequest, searchAttempt, searchOpen, searchQuery]);
 
   const openSearchResult = (item) => {
@@ -279,7 +292,6 @@ export default function PrivateLayout() {
                       <span className="flex items-start gap-2"><span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${item.readAt ? "bg-transparent" : "bg-blue-500"}`} aria-hidden="true" /><span className="min-w-0"><span className="block text-sm font-semibold">{item.title}</span><span className={`mt-0.5 block text-xs ${styles.sidebarMutedText}`}>{item.message}</span><time className={`mt-1 block text-[10px] ${styles.sidebarMutedText}`} dateTime={item.createdAt || item.occurredAt}>{formatNotificationTime(item.createdAt || item.occurredAt, notificationClock)}</time></span></span>
                     </button>)}
                   </div>
-                  <Link to="/settings" state={{ section: "notifications" }} onClick={() => setNotificationsOpen(false)} className={`block border-t px-4 py-2 text-xs ${styles.border} ${styles.blueText}`}>Notification preferences</Link>
                 </div>
               )}
             </div>
@@ -472,7 +484,7 @@ export default function PrivateLayout() {
           </section>
         </div>
       )}
-      <main className={`mx-auto w-full min-w-0 max-w-7xl flex-1 p-4  ${styles.themeTransition}`}>        
+      <main className={`mx-auto w-full min-w-0 max-w-7xl flex-1 p-6  ${styles.themeTransition}`}>        
         <BreadCrumbs />
         <Outlet />
       </main>

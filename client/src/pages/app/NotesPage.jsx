@@ -1,37 +1,26 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useBlocker, useNavigate, useSearchParams } from "react-router-dom";
-import {
-    BookOpen,
-    Bold,
-    ChevronDown,
-    ClipboardList,
-    Eraser,
-    Highlighter,
-    Italic,
-    List as ListIcon,
-    ListOrdered,
-    MoreHorizontal,
-    BadgePlus,
-    Search,
-    Table2,
-    Trash2,
-    Underline,
-    Download,
-    Save as SaveIcon,
-} from "lucide-react";
+import { BadgePlus } from "lucide-react";
 import Styling from "../../components/theme/Styling";
 import { useDarkMode } from "../../components/theme/DarkModeContext";
 import { useAuth } from "../../auth/AuthContext";
 import NoteTableControls from "../../components/utils/notes/NoteTableControls";
+import NotesSidebar from "../../components/utils/notes/NotesSidebar";
+import NotesActionsFooter from "../../components/utils/notes/NotesActionsFooter";
+import NotesPageSkeleton from "../../components/utils/notes/NotesPageSkeleton";
+import NotesPageDialogs from "../../components/utils/notes/NotesPageDialogs";
+import NotesDocumentEditor from "../../components/utils/notes/NotesDocumentEditor";
+import NotebookHeader from "../../components/utils/notes/NotebookHeader";
 import useDialogFocus from "../../components/utils/study tools/useDialogFocus";
 import {
     clearListItemIndent,
     cleanEditorHtml,
+    getSelectedListItems,
     getActiveCell,
     getActiveListItem,
     indentBlock,
-    indentListItem,
-    outdentListItem,
+    indentListItems,
+    outdentListItems,
     preserveEditorScroll,
     stripTableUi,
     syncListStyles,
@@ -47,17 +36,7 @@ const typingInputTypes = new Set([
     "deleteContentForward",
 ]);
 
-const textColorOptions = [
-    { label: "Default", value: "#1f2937" },
-    { label: "Red", value: "#dc2626" },
-    { label: "Orange", value: "#ea580c" },
-    { label: "Yellow", value: "#ca8a04" },
-    { label: "Green", value: "#16a34a" },
-    { label: "Teal", value: "#0d9488" },
-    { label: "Blue", value: "#2563eb" },
-    { label: "Purple", value: "#9333ea" },
-    { label: "Pink", value: "#db2777" },
-];
+const formatPainterCursor = `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="m14 6 4 4M3 21l5.2-1.1a2 2 0 0 0 1-.5L21 7.6a2 2 0 0 0-2.8-2.8L6.4 16.6a2 2 0 0 0-.5 1L5 23" fill="#f8fafc" stroke="#111827" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>')}") 3 20, copy`;
 
 const isSimpleTable = (table) =>
     Array.from(table.rows).every((row) =>
@@ -82,6 +61,29 @@ const getResizeBoundary = (table, clientX) => {
         }
     }
     return closestIndex;
+};
+
+const compareNotesByCreatedAt = (left, right) => {
+    const leftCreatedAt = Date.parse(left.createdAt ?? "");
+    const rightCreatedAt = Date.parse(right.createdAt ?? "");
+    const leftOrder = Number.isFinite(leftCreatedAt) ? leftCreatedAt : Number.POSITIVE_INFINITY;
+    const rightOrder = Number.isFinite(rightCreatedAt) ? rightCreatedAt : Number.POSITIVE_INFINITY;
+    return leftOrder - rightOrder;
+};
+
+const sanitizeFormattedHtml = (html) => {
+    const parsed = new DOMParser().parseFromString(String(html || ""), "text/html");
+    const allowed = new Set(["H1", "H2", "H3", "P", "BR", "STRONG", "B", "EM", "I", "U", "OL", "UL", "LI", "BLOCKQUOTE"]);
+    const cleanNode = (node) => {
+        Array.from(node.children).forEach(cleanNode);
+        if (node !== parsed.body && !allowed.has(node.tagName)) {
+            node.replaceWith(...Array.from(node.childNodes));
+            return;
+        }
+        if (node !== parsed.body) Array.from(node.attributes).forEach((attribute) => node.removeAttribute(attribute.name));
+    };
+    cleanNode(parsed.body);
+    return parsed.body.innerHTML;
 };
 
 const syncColGroup = (table) => {
@@ -369,90 +371,6 @@ const enhanceTables = (editor) => {
     });
 };
 
-function NotesPageSkeleton({ styles }) {
-    const bar = "animate-pulse rounded-md bg-gray-500/15";
-    const toolbarButton = "h-8 w-8 animate-pulse rounded-md bg-gray-500/15";
-
-    return (
-        <div
-            role="status"
-            aria-label="Loading notes"
-            aria-busy="true"
-            className={`mx-auto flex min-h-[calc(100dvh-120px)] w-full max-w-7xl overflow-hidden rounded-xl border md:h-[calc(100dvh-140px)] md:min-h-[520px] ${styles.border} ${styles.secondaryBg}`}
-        >
-            <span className="sr-only">Loading notes…</span>
-            <div className="grid min-h-[calc(100dvh-120px)] flex-1 grid-rows-1 md:h-full md:min-h-0 md:grid-cols-[280px_minmax(0,1fr)]">
-                <aside aria-hidden="true" className={`hidden min-h-0 flex-col border-r md:flex ${styles.border}`}>
-                    <div className="flex items-center justify-between px-4 py-4">
-                        <div className="space-y-2">
-                            <div className={`${bar} h-5 w-28`} />
-                            <div className={`${bar} h-3 w-14`} />
-                        </div>
-                        <div className={`${bar} h-9 w-9 rounded-full`} />
-                    </div>
-                    <div className="px-4 pb-3">
-                        <div className={`${bar} h-10 w-full rounded-lg`} />
-                    </div>
-                    <div className="space-y-2 px-2">
-                        {[0, 1, 2].map((item) => (
-                            <div key={item} className="space-y-2 rounded-lg px-3 py-3">
-                                <div className={`${bar} h-4 w-3/4`} />
-                                <div className={`${bar} h-3 w-full`} />
-                            </div>
-                        ))}
-                    </div>
-                </aside>
-
-                <main aria-hidden="true" className="flex min-h-0 min-w-0 flex-col">
-                    <header className={`flex flex-col gap-2 border-b px-3 py-2 sm:px-5 sm:py-3 md:flex-row md:items-center ${styles.border}`}>
-                        <div className="flex items-center gap-2 md:hidden">
-                            <div className={`${bar} h-9 flex-1 rounded-md`} />
-                            <div className={`${bar} h-9 w-9 rounded-full`} />
-                        </div>
-                        <div className="flex min-w-0 flex-wrap items-center gap-1 sm:gap-1.5 md:flex-1">
-                            <div className={`${bar} h-9 w-24 rounded-md`} />
-                            <div className={`${bar} h-8 w-12 rounded-md`} />
-                            {[0, 1, 2, 3, 4, 5, 6, 7].map((item) => (
-                                <div key={item} className={toolbarButton} />
-                            ))}
-                        </div>
-                    </header>
-
-                    <section className="modal-scroll flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-5 sm:px-8 sm:py-7 lg:px-10">
-                        <div className={`${bar} h-9 w-3/4 max-w-2xl sm:h-10`} />
-                        <div className={`mt-4 h-px w-full ${styles.border} border-t`} />
-                        <div className="mt-5 space-y-3">
-                            <div className={`${bar} h-4 w-full`} />
-                            <div className={`${bar} h-4 w-11/12`} />
-                            <div className={`${bar} h-4 w-4/5`} />
-                        </div>
-                        <div className={`${bar} mt-7 h-6 w-48`} />
-                        <div className="mt-4 space-y-3 pl-4 sm:pl-6">
-                            {["w-full", "w-11/12", "w-4/5"].map((width, item) => (
-                                <div key={item} className="flex items-center gap-3">
-                                    <div className={`${bar} h-2 w-2 shrink-0 rounded-full`} />
-                                    <div className={`${bar} h-4 ${width}`} />
-                                </div>
-                            ))}
-                        </div>
-                        <div className={`${bar} mt-7 h-6 w-56`} />
-                        <div className="mt-4 space-y-3">
-                            {["w-full", "w-10/12", "w-3/4", "w-11/12", "w-2/3"].map((width, item) => (
-                                <div key={item} className={`${bar} h-4 ${width}`} />
-                            ))}
-                        </div>
-                    </section>
-
-                    <footer className={`flex shrink-0 justify-end gap-2 border-t px-3 py-2 sm:px-5 ${styles.border}`}>
-                        <div className={`${bar} h-8 w-32 rounded-lg`} />
-                        <div className={`${bar} h-8 w-32 rounded-lg`} />
-                    </footer>
-                </main>
-            </div>
-        </div>
-    );
-}
-
 export default function NotesPage() {
     const styles = Styling();
     const { darkMode } = useDarkMode();
@@ -461,7 +379,6 @@ export default function NotesPage() {
     const [searchParams, setSearchParams] = useSearchParams();
     const notebookId = searchParams.get("notebookId");
     const editorRef = useRef(null);
-    const menuRef = useRef(null);
     const textColorMenuRef = useRef(null);
     const tableToolbarRef = useRef(null);
     const tableHandleMenuRef = useRef(null);
@@ -472,6 +389,7 @@ export default function NotesPage() {
     const persistedNotesRef = useRef(new Map());
     const unsavedNoteIdsRef = useRef(new Set());
     const hasUnsavedChangesRef = useRef(false);
+    const confirmedNavigationRef = useRef(false);
     const pendingSaveCountRef = useRef(0);
     const pendingNoteSaveCountsRef = useRef(new Map());
     const saveQueueRef = useRef(Promise.resolve());
@@ -480,12 +398,16 @@ export default function NotesPage() {
     const navigationDialogRef = useRef(null);
     const savingBeforeNavigationRef = useRef(false);
     const [notes, setNotes] = useState([]);
+    const [notebookName, setNotebookName] = useState("");
     const [activeId, setActiveId] = useState(null);
     const [query, setQuery] = useState("");
     const [deleteId, setDeleteId] = useState(null);
-    const [menuId, setMenuId] = useState(null);
+    const [mobileNotesOpen, setMobileNotesOpen] = useState(false);
+    const [mobileEditorOpen, setMobileEditorOpen] = useState(false);
     const [textColor, setTextColor] = useState("#1f2937");
     const [textColorOpen, setTextColorOpen] = useState(false);
+    const [formatPainterActive, setFormatPainterActive] = useState(false);
+    const formatPainterStyleRef = useRef(null);
     const [activeTable, setActiveTable] = useState(null);
     const [tableHandleMenu, setTableHandleMenu] = useState(null);
     const [loadedNotebookKey, setLoadedNotebookKey] = useState(undefined);
@@ -493,10 +415,14 @@ export default function NotesPage() {
     const [saveError, setSaveError] = useState("");
     const latestSaveErrorRef = useRef("");
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [unsavedNoteIds, setUnsavedNoteIds] = useState(() => new Set());
+    const [pendingNoteSaveIds, setPendingNoteSaveIds] = useState(() => new Set());
     const [savingNoteCount, setSavingNoteCount] = useState(0);
     const [savingBeforeNavigation, setSavingBeforeNavigation] = useState(false);
     const [navigationSaveError, setNavigationSaveError] = useState("");
-    const [exportStatus, setExportStatus] = useState("");
+    const [, setExportStatus] = useState("");
+    const [formattingNote, setFormattingNote] = useState(false);
+    const [formatStatus, setFormatStatus] = useState("");
     const [exportMenuOpen, setExportMenuOpen] = useState(false);
     const exportMenuRef = useRef(null);
     const exportButtonRef = useRef(null);
@@ -518,18 +444,26 @@ export default function NotesPage() {
     const updateUnsavedState = useCallback((noteId, unsaved) => {
         if (unsaved) unsavedNoteIdsRef.current.add(noteId);
         else unsavedNoteIdsRef.current.delete(noteId);
+        setUnsavedNoteIds((current) => {
+            const next = new Set(current);
+            if (unsaved) next.add(noteId);
+            else next.delete(noteId);
+            return next;
+        });
         const hasChanges = unsavedNoteIdsRef.current.size > 0;
         hasUnsavedChangesRef.current = hasChanges;
         setHasUnsavedChanges(hasChanges);
     }, []);
 
     useEffect(() => {
+        confirmedNavigationRef.current = false;
         let active = true;
         let redirected = false;
         let minimumTimer = null;
         let finishMinimumWait = null;
         const startedAt = window.performance.now();
         const loadNotes = async () => {
+            setNotebookName("");
             try {
                 if (!notebookId) {
                     const { notebooks } = await apiRequest("/notebooks");
@@ -543,6 +477,7 @@ export default function NotesPage() {
                     persistedNotesRef.current.clear();
                     noteVersionsRef.current.clear();
                     unsavedNoteIdsRef.current.clear();
+                    setUnsavedNoteIds(new Set());
                     hasUnsavedChangesRef.current = false;
                     setHasUnsavedChanges(false);
                     return;
@@ -551,16 +486,27 @@ export default function NotesPage() {
                     `/notes?notebookId=${encodeURIComponent(notebookId)}`
                 );
                 if (!active) return;
+                let loadedNotebookName = loadedNotes[0]?.notebookTitle || "";
+                if (!loadedNotebookName) {
+                    const { notebook } = await apiRequest(
+                        `/notebooks/${encodeURIComponent(notebookId)}`
+                    );
+                    loadedNotebookName = notebook.name;
+                }
+                if (!active) return;
+                setNotebookName(loadedNotebookName);
                 latestNotesRef.current = loadedNotes;
                 noteVersionsRef.current = new Map(loadedNotes.map((note) => [note.id, 0]));
                 persistedNotesRef.current = new Map(
                     loadedNotes.map((note) => [note.id, { ...note }])
                 );
                 unsavedNoteIdsRef.current.clear();
+                setUnsavedNoteIds(new Set());
                 hasUnsavedChangesRef.current = false;
                 setHasUnsavedChanges(false);
-                setNotes(loadedNotes);
-                setActiveId(loadedNotes[0]?.id ?? null);
+                const orderedNotes = [...loadedNotes].sort(compareNotesByCreatedAt);
+                setNotes(orderedNotes);
+                setActiveId(orderedNotes[0]?.id ?? null);
             } catch (error) {
                 if (active) setSaveError(error.message);
             } finally {
@@ -586,6 +532,7 @@ export default function NotesPage() {
 
     useEffect(() => {
         const warnBeforeUnload = (event) => {
+            if (confirmedNavigationRef.current) return;
             if (!hasUnsavedChangesRef.current) return;
             event.preventDefault();
             event.returnValue = "";
@@ -598,23 +545,24 @@ export default function NotesPage() {
         if (blocker.state === "blocked" && !hasUnsavedChanges && !savingBeforeNavigation) {
             blocker.proceed();
         }
-    }, [blocker, hasUnsavedChanges, savingBeforeNavigation]);
+    }, [blocker, blocker.state, hasUnsavedChanges, savingBeforeNavigation]);
 
     useEffect(() => {
-        if (menuId === null) return undefined;
-        const closeMenu = (event) => {
-            if (!menuRef.current?.contains(event.target)) setMenuId(null);
+        if (!mobileNotesOpen) return undefined;
+        const drawer = document.querySelector(".notes-sidebar-drawer");
+        const focusable = () => Array.from(drawer?.querySelectorAll('button:not([disabled]), input:not([disabled]), [href], [tabindex="0"]') ?? []);
+        focusable()[0]?.focus();
+        const handleKey = (event) => {
+            if (event.key === "Escape") { setMobileNotesOpen(false); document.querySelector('[aria-label="Open notes list"]')?.focus(); }
+            if (event.key !== "Tab") return;
+            const items = focusable();
+            if (!items.length) return;
+            if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items.at(-1).focus(); }
+            else if (!event.shiftKey && document.activeElement === items.at(-1)) { event.preventDefault(); items[0].focus(); }
         };
-        const closeOnEscape = (event) => {
-            if (event.key === "Escape") setMenuId(null);
-        };
-        document.addEventListener("pointerdown", closeMenu);
-        document.addEventListener("keydown", closeOnEscape);
-        return () => {
-            document.removeEventListener("pointerdown", closeMenu);
-            document.removeEventListener("keydown", closeOnEscape);
-        };
-    }, [menuId]);
+        document.addEventListener("keydown", handleKey);
+        return () => document.removeEventListener("keydown", handleKey);
+    }, [mobileNotesOpen]);
 
     useEffect(() => {
         if (!textColorOpen) return undefined;
@@ -633,8 +581,38 @@ export default function NotesPage() {
     }, [textColorOpen]);
 
     useEffect(() => {
+        const editor = editorRef.current;
+        if (!editor) return undefined;
+        if (formatPainterActive) {
+            editor.dataset.formatPainter = "active";
+            editor.style.cursor = formatPainterCursor;
+        } else if (editor.dataset.formatPainter) {
+            delete editor.dataset.formatPainter;
+            editor.style.cursor = "";
+        }
+        return () => {
+            if (editor.dataset.formatPainter) {
+                delete editor.dataset.formatPainter;
+                editor.style.cursor = "";
+            }
+        };
+    }, [formatPainterActive, activeId]);
+
+    useEffect(() => {
+        if (!formatPainterActive) return undefined;
+        const cancelOnEscape = (event) => {
+            if (event.key === "Escape") {
+                setFormatPainterActive(false);
+                formatPainterStyleRef.current = null;
+            }
+        };
+        document.addEventListener("keydown", cancelOnEscape);
+        return () => document.removeEventListener("keydown", cancelOnEscape);
+    }, [formatPainterActive]);
+
+    useEffect(() => {
         if (!exportMenuOpen) return undefined;
-        window.requestAnimationFrame(() => exportMenuRef.current?.querySelector('[role="menuitem"]')?.focus());
+        window.requestAnimationFrame(() => document.querySelector('[data-notes-toolbar-menu="export"] [role="menuitem"]')?.focus());
         const closeOnOutsideClick = (event) => {
             if (!exportMenuRef.current?.contains(event.target)) setExportMenuOpen(false);
         };
@@ -652,11 +630,11 @@ export default function NotesPage() {
         };
     }, [exportMenuOpen]);
 
-    const visibleNotes = notes.filter((note) =>
+    const visibleNotes = [...notes].sort(compareNotesByCreatedAt).filter((note) =>
         `${note.title} ${textFromHtml(note.content)}`.toLowerCase().includes(query.toLowerCase())
     );
     const activeNote = notes.find((note) => note.id === activeId) ?? null;
-    const activeNoteHasUnsavedChanges = Boolean(activeNote && unsavedNoteIdsRef.current.has(activeNote.id));
+    const activeNoteHasUnsavedChanges = Boolean(activeNote && unsavedNoteIds.has(activeNote.id));
 
     const persistNote = useCallback((note) => {
         if (!note?.id || !notebookId) return Promise.resolve(false);
@@ -692,15 +670,21 @@ export default function NotesPage() {
         saveQueueRef.current = saveRequest;
         pendingSaveCountRef.current += 1;
         pendingNoteSaveCountsRef.current.set(note.id, (pendingNoteSaveCountsRef.current.get(note.id) || 0) + 1);
+        setPendingNoteSaveIds((current) => new Set(current).add(note.id));
         setSavingNoteCount(pendingSaveCountRef.current);
         return saveRequest.finally(() => {
             pendingSaveCountRef.current -= 1;
             const pendingForNote = pendingNoteSaveCountsRef.current.get(note.id) || 0;
             if (pendingForNote <= 1) pendingNoteSaveCountsRef.current.delete(note.id);
             else pendingNoteSaveCountsRef.current.set(note.id, pendingForNote - 1);
+            if (pendingForNote <= 1) setPendingNoteSaveIds((current) => {
+                const next = new Set(current);
+                next.delete(note.id);
+                return next;
+            });
             setSavingNoteCount(pendingSaveCountRef.current);
         });
-    }, [apiRequest, notebookId, replaceNotes, updateUnsavedState]);
+    }, [apiRequest, blocker.state, notebookId, replaceNotes, updateUnsavedState]);
 
     const saveActiveNote = async () => {
         if (!activeNote || pendingNoteSaveCountsRef.current.has(activeNote.id)) return false;
@@ -719,7 +703,49 @@ export default function NotesPage() {
         return persistNote(note);
     };
 
+    const formatActiveNote = async () => {
+        if (!activeNote || formattingNote || !editorRef.current) return;
+        const currentHtml = cleanEditorHtml(editorRef.current.innerHTML);
+        if (!textFromHtml(currentHtml).trim()) {
+            setFormatStatus("Add some note content before formatting.");
+            return;
+        }
+        const formattingNoteId = activeNote.id;
+        const formattingVersion = noteVersionsRef.current.get(formattingNoteId) ?? 0;
+        setFormattingNote(true);
+        setFormatStatus("");
+        try {
+            const { html } = await apiRequest("/study-materials/format-note", {
+                method: "POST",
+                body: JSON.stringify({ title: activeNote.title, content: currentHtml }),
+            });
+            const formattedHtml = sanitizeFormattedHtml(html);
+            if (!formattedHtml.trim()) throw new Error("The formatter returned an empty note.");
+            if (!editorRef.current || activeId !== formattingNoteId ||
+                (noteVersionsRef.current.get(formattingNoteId) ?? 0) !== formattingVersion) {
+                setFormatStatus("The note changed while formatting. Run Format note again to use the latest content.");
+                return;
+            }
+            editorRef.current.innerHTML = formattedHtml;
+            enhanceTables(editorRef.current);
+            const range = document.createRange();
+            range.selectNodeContents(editorRef.current);
+            range.collapse(false);
+            const selection = window.getSelection();
+            selection?.removeAllRanges();
+            selection?.addRange(range);
+            saveEditorChange(editorRef.current.innerHTML);
+            setFormatStatus("Note formatted. Review the changes and save when ready.");
+        } catch (error) {
+            setFormatStatus(error.message || "Could not format this note.");
+        } finally {
+            setFormattingNote(false);
+        }
+    };
+    void formatActiveNote;
+
     const stayOnPage = () => {
+        confirmedNavigationRef.current = false;
         blocker.reset();
         setNavigationSaveError("");
     };
@@ -742,12 +768,14 @@ export default function NotesPage() {
             return { ...savedNote };
         });
         unsavedNoteIdsRef.current.clear();
+        setUnsavedNoteIds(new Set());
         hasUnsavedChangesRef.current = false;
         setHasUnsavedChanges(false);
         latestSaveErrorRef.current = "";
         setSaveError("");
         setNavigationSaveError("");
         replaceNotes(revertedNotes);
+        confirmedNavigationRef.current = true;
         blocker.proceed();
     };
 
@@ -786,6 +814,7 @@ export default function NotesPage() {
                 setNavigationSaveError("Some changes are still unsaved. Please try again.");
                 return;
             }
+            confirmedNavigationRef.current = true;
             blocker.proceed();
         } finally {
             savingBeforeNavigationRef.current = false;
@@ -1008,6 +1037,85 @@ export default function NotesPage() {
         if (editor.contains(range.commonAncestorContainer)) {
             editorSelectionRef.current = range.cloneRange();
         }
+    };
+
+    const toggleFormatPainter = () => {
+        if (formatPainterActive) {
+            setFormatPainterActive(false);
+            formatPainterStyleRef.current = null;
+            return;
+        }
+
+        const editor = editorRef.current;
+        const selection = window.getSelection();
+        let selectedRange = editorSelectionRef.current ??
+            (selection?.rangeCount ? selection.getRangeAt(0) : null);
+        if (!editor || !selectedRange ||
+            !editor.contains(selectedRange.commonAncestorContainer)) return;
+
+        if (selectedRange.collapsed && selectedRange.startContainer.nodeType === Node.TEXT_NODE) {
+            const sourceTextNode = selectedRange.startContainer;
+            const sourceText = sourceTextNode.textContent;
+            const caret = selectedRange.startOffset;
+            let start = caret;
+            let end = caret;
+            while (start > 0 && /[\p{L}\p{N}_]/u.test(sourceText[start - 1])) start -= 1;
+            while (end < sourceText.length && /[\p{L}\p{N}_]/u.test(sourceText[end])) end += 1;
+            if (start < end) {
+                selectedRange = document.createRange();
+                selectedRange.setStart(sourceTextNode, start);
+                selectedRange.setEnd(sourceTextNode, end);
+            }
+        }
+
+        const sourceNode = selectedRange.startContainer.nodeType === Node.ELEMENT_NODE
+            ? selectedRange.startContainer
+            : selectedRange.startContainer.parentElement;
+        const sourceElement = sourceNode?.closest?.("span, strong, b, em, i, u, mark, a, p, li, h1, h2, h3") ?? sourceNode;
+        if (!sourceElement) return;
+        const computed = window.getComputedStyle(sourceElement);
+        formatPainterStyleRef.current = {
+            color: computed.color,
+            backgroundColor: computed.backgroundColor,
+            fontWeight: computed.fontWeight,
+            fontStyle: computed.fontStyle,
+            textDecoration: computed.textDecorationLine,
+            fontFamily: computed.fontFamily,
+            fontSize: computed.fontSize,
+        };
+        editorSelectionRef.current = selectedRange.cloneRange();
+        setFormatPainterActive(true);
+    };
+
+    const handleEditorMouseUp = () => {
+        rememberEditorSelection();
+        if (!formatPainterActive || !formatPainterStyleRef.current) return;
+
+        const editor = editorRef.current;
+        const selection = window.getSelection();
+        if (!editor || !selection?.rangeCount || selection.isCollapsed) return;
+        const range = selection.getRangeAt(0);
+        if (!editor.contains(range.commonAncestorContainer)) return;
+
+        const styleValues = formatPainterStyleRef.current;
+        const wrapper = document.createElement("span");
+        const setCopiedStyle = (element) => {
+            Object.entries(styleValues).forEach(([property, value]) => {
+                element.style.setProperty(property.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`), value, "important");
+            });
+        };
+        setCopiedStyle(wrapper);
+        const fragment = range.extractContents();
+        fragment.querySelectorAll?.("*").forEach(setCopiedStyle);
+        wrapper.append(fragment);
+        range.insertNode(wrapper);
+
+        const paintedRange = document.createRange();
+        paintedRange.selectNodeContents(wrapper);
+        selection.removeAllRanges();
+        selection.addRange(paintedRange);
+        editorSelectionRef.current = paintedRange.cloneRange();
+        saveEditorChange(editor.innerHTML);
     };
 
     const applyTextColor = (color) => {
@@ -1402,6 +1510,10 @@ export default function NotesPage() {
 
     const updateTableResizeCursor = (event) => {
         const editor = editorRef.current;
+        if (formatPainterActive) {
+            if (editor) editor.style.cursor = formatPainterCursor;
+            return;
+        }
         const target = event.target instanceof Element ? event.target : null;
         const table = target?.closest("table");
         if (target?.closest("[data-note-table-handle], [data-note-table-action]")) {
@@ -1583,11 +1695,11 @@ export default function NotesPage() {
 
         if (event.key !== "Tab") return;
         event.preventDefault();
-        const listItem = getActiveListItem(editor);
-        if (listItem) {
+        const listItems = getSelectedListItems(editor);
+        if (listItems.length) {
             const changed = event.shiftKey
-                ? outdentListItem(listItem)
-                : indentListItem(listItem);
+                ? outdentListItems(listItems)
+                : indentListItems(listItems);
             syncListStyles(editor);
             if (changed) saveEditorChange(editor.innerHTML);
             return;
@@ -1627,321 +1739,92 @@ export default function NotesPage() {
     return (
         <div
             onKeyDownCapture={handleSaveShortcut}
-            className={`mx-auto flex min-h-[calc(100dvh-120px)] w-full max-w-7xl overflow-hidden rounded-xl
-            border md:h-[calc(100dvh-140px)] md:min-h-[520px] ${styles.border} ${styles.secondaryBg}`}
+            style={styles.notesCssVars}
+            className={`mx-auto flex h-[calc(100dvh-140px)] min-h-[520px] w-full overflow-hidden
+                        [font-family:Inter,sans-serif] max-[1023px]:h-[calc(100dvh-140px)] 
+                        max-[1023px]:min-h-[520px] max-[1023px]:gap-0 max-[1023px]:p-0 
+                        max-[639px]:-mx-4 max-[639px]:w-[calc(100%+2rem)] max-[639px]:h-[calc(100dvh-120px)] max-[639px]:min-h-0 max-[639px]:p-0
+                         ${mobileNotesOpen ? 
+                            "max-[1023px]:[&>div>aside]:fixed max-[1023px]:[&>div>aside]:left-0 max-[1023px]:[&>div>aside]:top-0 max-[1023px]:[&>div>aside]:flex" : ""} 
+                        ${mobileEditorOpen ? "max-[639px]:[&>div>aside]:!hidden" : "max-[639px]:[&>div>main]:hidden"}`}
         >
-            <div className="grid min-h-[calc(100dvh-120px)] flex-1 grid-rows-1 md:h-full md:min-h-0 md:grid-cols-[280px_minmax(0,1fr)]">
-                <aside className={`hidden min-h-0 flex-col border-b md:flex md:max-h-none md:border-b-0 md:border-r ${styles.border}`}>
-                    <div className="flex items-center justify-between px-4 py-4">
-                        <div>
-                            <h1 className={`max-w-[190px] truncate text-lg font-semibold ${styles.primaryText}`}>{notes[0]?.notebookTitle || "My Notes"}</h1>
-                            <p className={`mt-0.5 text-xs ${styles.tertiaryText}`}>{notes.length} pages</p>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={createNote}
-                            aria-label="Create a new note"
-                            className={`flex h-9 w-9 items-center justify-center rounded-full ${styles.buttonFrost}`}
-                        >
-                            <BadgePlus className="h-4 w-4" />
-                        </button>
-                    </div>
+            <div className="grid min-h-0 flex-1 grid-cols-[300px_minmax(0,1fr)] gap-2.5 max-[1023px]:grid-cols-1 max-[1023px]:gap-0">
+                {mobileNotesOpen && <button type="button" className="fixed inset-0 z-[70] bg-black/60" aria-label="Close notes sidebar" onClick={() => setMobileNotesOpen(false)} />}
+                <NotesSidebar
+                    styles={styles}
+                    notebookName={notebookName}
+                    visibleNotes={visibleNotes}
+                    activeId={activeId}
+                    setActiveId={setActiveId}
+                    query={query}
+                    setQuery={setQuery}
+                    createNote={createNote}
+                    onStudy={(tab) => navigate("/study-tools", { state: { tab } })}
+                    setMobileNotesOpen={setMobileNotesOpen}
+                    setMobileEditorOpen={setMobileEditorOpen}
+                    mobileNotesOpen={mobileNotesOpen}
+                />
 
-                    <div className="px-4 pb-3">
-                        <label className="relative block">
-                            <Search className={`absolute left-3 top-2.5 h-4 w-4 ${styles.tertiaryText}`} />
-                            <span className="sr-only">Search notes</span>
-                            <input
-                                value={query}
-                                onChange={(event) => setQuery(event.target.value)}
-                                placeholder="Search notes"
-                                className={`w-full rounded-lg border py-2 pl-9 pr-3 text-sm ${styles.input} ${styles.border}`}
-                            />
-                        </label>
-                    </div>
-
-                    <nav className="modal-scroll min-h-0 flex-1 space-y-1 overflow-y-auto px-2 pb-3" aria-label="Notes">
-                        {visibleNotes.map((note) => (
-                            <div
-                                key={note.id}
-                                ref={menuId === note.id ? menuRef : null}
-                                className="w-full rounded-lg"
-                            >
-                                <div className={`flex items-center rounded-lg ${
-                                    activeId === note.id ? "bg-blue-600/10" : styles.secondaryBgHover
-                                }`}>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setActiveId(note.id);
-                                            setMenuId(null);
-                                        }}
-                                        className="min-w-0 flex-1 px-3 py-2.5 text-left md:py-3"
-                                    >
-                                        <span className={`block truncate text-sm font-semibold ${activeId === note.id ? styles.blueText : styles.primaryText}`}>
-                                            {note.title || "Untitled note"}
-                                        </span>
-                                        <span className={`mt-1 block truncate text-xs ${styles.tertiaryText}`}>
-                                            {textFromHtml(note.content) || "Empty page"}
-                                        </span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setMenuId((openId) => openId === note.id ? null : note.id)}
-                                        aria-label={`More options for ${note.title || "Untitled note"}`}
-                                        aria-haspopup="menu"
-                                        aria-expanded={menuId === note.id}
-                                        className={`mr-1 shrink-0 rounded-md p-2 ${styles.headerNavText} ${styles.secondaryBgHover}`}
-                                    >
-                                        <MoreHorizontal className="h-4 w-4" />
-                                    </button>
-                                </div>
-                                {menuId === note.id && (
-                                    <div role="menu" className={`mt-1 rounded-lg border  ${styles.border} ${styles.secondaryBg}`}>
-                                        <button
-                                            type="button"
-                                            role="menuitem"
-                                            onClick={() => {
-                                                setDeleteId(note.id);
-                                                setMenuId(null);
-                                            }}
-                                            className={`flex w-full rounded-lg px-4 py-2 text-sm cursor-pointer ${styles.secondaryBgHover}`}
-                                        >
-                                            Delete
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                        {visibleNotes.length === 0 && (
-                            <p className={`px-3 py-8 text-center text-sm ${styles.tertiaryText}`}>No notes found</p>
-                        )}
-                    </nav>
-                </aside>
-
-                <main className="flex min-h-0 min-w-0 flex-col">
+                <main className={`flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border ${styles.border} max-[639px]:h-full`}>
                     {saveError && (
                         <div role="alert" className="flex items-center justify-between gap-3 border-b border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-600">
                             <span>{saveError}</span>
                             {activeNote && <button type="button" onClick={saveActiveNote} className="shrink-0 font-semibold underline">Retry save</button>}
                         </div>
                     )}
+                    {formatStatus && (
+                        <div role={formattingNote ? "status" : "alert"} className={`border-b px-4 py-2 text-sm ${formatStatus.startsWith("Note formatted") ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700" : "border-[var(--border)] text-[var(--text-muted)]"}`}>
+                            {formatStatus}
+                        </div>
+                    )}
                     {loading ? (
                         <div className="flex flex-1 items-center justify-center text-sm text-gray-500">Loading notes…</div>
                     ) : activeNote ? (
                         <>
-                            <header className={`flex flex-col gap-2 border-b px-3 py-2 sm:px-5 sm:py-3 md:flex-row md:items-center md:justify-between ${styles.border}`}>
-                                <div className="flex items-center gap-2 md:hidden">
-                                    <select
-                                        value={activeNote.id}
-                                        onChange={(event) => {
-                                            setActiveId(event.target.value);
-                                        }}
-                                        className={`min-w-0 flex-1 rounded-md border px-2 py-2 text-xs ${styles.input} ${styles.border}`}
-                                        aria-label="Select note section"
-                                    >
-                                        {notes.map((note) => (
-                                            <option key={note.id} value={note.id}>{note.title || "Untitled note"}</option>
-                                        ))}
-                                    </select>
-                                    <button
-                                        type="button"
-                                        onClick={createNote}
-                                        aria-label="Create a new note"
-                                        title="Create a new note"
-                                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${styles.buttonBlue}`}
-                                    >
-                                        <BadgePlus className="h-4 w-4" />
-                                    </button>
-                                </div>
-                               
-                                <div className="note-toolbar w-full min-w-0 md:flex-1">
-                                    <div className="flex flex-wrap items-center justify-start gap-0.5 sm:gap-1">
-                                    
-                                    <select
-                                        defaultValue="p"
-                                        onChange={(event) => applyFormat("formatBlock", event.target.value)}
-                                        aria-label="Text style"
-                                        className={`mr-1 shrink-0 rounded-md border px-2 py-2 text-xs ${styles.input} ${styles.border}`}
-                                    >
-                                        <option value="p">Paragraph</option>
-                                        <option value="h1">Heading 1</option>
-                                        <option value="h2">Heading 2</option>
-                                        <option value="h3">Heading 3</option>
-                                    </select>
-                                     <div className="relative shrink-0" ref={textColorMenuRef}>
-                                        <button
-                                            type="button"
-                                            onMouseDown={(event) => {
-                                                event.preventDefault();
-                                                rememberEditorSelection();
-                                            }}
-                                            onClick={() => setTextColorOpen((open) => !open)}
-                                            aria-label="Text color"
-                                            aria-haspopup="menu"
-                                            aria-expanded={textColorOpen}
-                                            title="Text color"
-                                            className={`flex h-8 items-center gap-1 rounded border px-1.5 ${styles.border} ${styles.headerNavText} ${styles.secondaryBgHover}`}
-                                        >
-                                            <span className="border-b-2 px-0.5 font-bold leading-5" style={{ borderColor: textColor }}>A</span>
-                                            <ChevronDown className="h-3.5 w-3.5" />
-                                        </button>
-                                        {textColorOpen && (
-                                            <div role="menu" aria-label="Text colors" className={`absolute left-0 top-full z-50 mt-1 w-52 rounded-lg border p-3 ${styles.border} ${styles.secondaryBg} ${styles.shadow}`}>
-                                                <div className="grid grid-cols-3 gap-1">
-                                                    {textColorOptions.map((option) => (
-                                                        <button
-                                                            key={option.value}
-                                                            type="button"
-                                                            role="menuitem"
-                                                            onMouseDown={(event) => {
-                                                                event.preventDefault();
-                                                                rememberEditorSelection();
-                                                            }}
-                                                            onClick={() => applyTextColor(option.value)}
-                                                            aria-label={`${option.label} text`}
-                                                            title={option.label}
-                                                            className={`flex h-8 items-center gap-2 rounded px-2 text-xs ${styles.secondaryBgHover} ${styles.primaryText}`}
-                                                        >
-                                                            <span className="font-bold" style={{ color: option.value }}>A</span>
-                                                            {option.label}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                                <label className={`mt-2 flex items-center justify-between border-t pt-2 text-xs ${styles.border} ${styles.secondaryText}`}>
-                                                    Custom color
-                                                    <input
-                                                        type="color"
-                                                        value={textColor}
-                                                        onPointerDown={rememberEditorSelection}
-                                                        onChange={(event) => applyTextColor(event.target.value)}
-                                                        aria-label="Custom text color"
-                                                        className="h-6 w-8 cursor-pointer border-0 bg-transparent p-0"
-                                                    />
-                                                </label>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => applyFormat("bold")} aria-label="Bold" title="Bold" className={`shrink-0 rounded p-2 ${styles.headerNavText} ${styles.secondaryBgHover}`}>
-                                        <Bold className="h-4 w-4" />
-                                    </button>
-                                    <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => applyFormat("italic")} aria-label="Italic" title="Italic" className={`shrink-0 rounded p-2 ${styles.headerNavText} ${styles.secondaryBgHover}`}>
-                                        <Italic className="h-4 w-4" />
-                                    </button>
-                                    <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => applyFormat("underline")} aria-label="Underline" title="Underline" className={`shrink-0 rounded p-2 ${styles.headerNavText} ${styles.secondaryBgHover}`}>
-                                        <Underline className="h-4 w-4" />
-                                    </button>
-                                    <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={highlightSelection} aria-label="Highlight selected text" title="Highlight selected text" className={`shrink-0 rounded p-2 ${styles.headerNavText} ${styles.secondaryBgHover}`}>
-                                        <Highlighter className="h-4 w-4" />
-                                    </button>
-                                    <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={removeHighlightSelection} aria-label="Remove highlight from selected text" title="Remove highlight" className={`shrink-0 rounded p-2 ${styles.headerNavText} ${styles.secondaryBgHover}`}>
-                                        <Eraser className="h-4 w-4" />
-                                    </button>
-                                    <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => applyFormat("insertUnorderedList")} aria-label="Bulleted list" title="Bulleted list" className={`shrink-0 rounded p-2 ${styles.headerNavText} ${styles.secondaryBgHover}`}>
-                                        <ListIcon className="h-4 w-4" />
-                                    </button>
-                                    <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => applyFormat("insertOrderedList")} aria-label="Numbered list" title="Numbered list" className={`shrink-0 rounded p-2 ${styles.headerNavText} ${styles.secondaryBgHover}`}>
-                                        <ListOrdered className="h-4 w-4" />
-                                    </button>
-                                    <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={insertTable} aria-label="Insert table" title="Insert table" className={`shrink-0 rounded p-2 ${styles.headerNavText} ${styles.secondaryBgHover}`}>
-                                        <Table2 className="h-4 w-4" />
-                                    </button>
+                            <NotebookHeader
+                                styles={styles}
+                                onOpenNotes={() => setMobileNotesOpen(true)}
+                                onBackToNotes={() => setMobileEditorOpen(false)}
+                                saved={!activeNoteHasUnsavedChanges && !pendingNoteSaveIds.has(activeNote.id)}
+                                onSave={saveActiveNote}
+                                onDelete={() => setDeleteId(activeNote.id)}
+                                onExport={exportNote}
+                                exportMenuOpen={exportMenuOpen}
+                                setExportMenuOpen={setExportMenuOpen}
+                                exportMenuRef={exportMenuRef}
+                                exportButtonRef={exportButtonRef}
+                                savingNoteCount={savingNoteCount}
+                                editorRef={editorRef}
+                                textColorMenuRef={textColorMenuRef}
+                                textColorOpen={textColorOpen}
+                                setTextColorOpen={setTextColorOpen}
+                                textColor={textColor}
+                                rememberEditorSelection={rememberEditorSelection}
+                                applyTextColor={applyTextColor}
+                                applyFormat={applyFormat}
+                                highlightSelection={highlightSelection}
+                                removeHighlightSelection={removeHighlightSelection}
+                                insertTable={insertTable}
+                                formatPainterActive={formatPainterActive}
+                                onFormatPainter={toggleFormatPainter}
+                            />
 
-                                    <button
-                                        type="button"
-                                        onMouseDown={(event) => event.preventDefault()}
-                                        onClick={saveActiveNote}
-                                        disabled={!activeNoteHasUnsavedChanges || pendingNoteSaveCountsRef.current.has(activeNote.id)}
-                                        aria-keyshortcuts="Control+S Meta+S"
-                                        aria-label={pendingNoteSaveCountsRef.current.has(activeNote.id) ? "Saving note" : activeNoteHasUnsavedChanges ? "Save note" : "Note saved"}
-                                        title="Save note (Ctrl+S or Cmd+S)"
-                                        className={`inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg border px-2 text-xs font-medium ${styles.border} ${styles.secondaryBgHover} disabled:cursor-not-allowed disabled:opacity-50`}
-                                    >
-                                        <SaveIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                                        {pendingNoteSaveCountsRef.current.has(activeNote.id) ? "Saving…" : activeNoteHasUnsavedChanges ? "Save" : "Saved"}
-                                    </button>
-                                    <div ref={exportMenuRef} className="relative shrink-0">
-                                        <button
-                                            ref={exportButtonRef}
-                                            type="button"
-                                            onClick={() => setExportMenuOpen((open) => !open)}
-                                            disabled={!activeNote || savingNoteCount > 0}
-                                            aria-haspopup="menu"
-                                            aria-expanded={exportMenuOpen}
-                                            aria-controls="note-export-menu"
-                                            className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium ${styles.border} ${styles.secondaryBgHover} disabled:cursor-not-allowed disabled:opacity-50`}
-                                        >
-                                            <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                                            Export
-                                            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${exportMenuOpen ? "rotate-180" : ""}`} aria-hidden="true" />
-                                        </button>
-                                        {exportMenuOpen && <div id="note-export-menu" role="menu" aria-label="Export note" onKeyDown={(event) => {
-                                            if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-                                            const items = Array.from(event.currentTarget.querySelectorAll('[role="menuitem"]'));
-                                            const currentIndex = items.indexOf(document.activeElement);
-                                            const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (currentIndex + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
-                                            event.preventDefault();
-                                            items[nextIndex]?.focus();
-                                        }} className={`absolute right-0 top-full z-50 mt-1 min-w-44 rounded-lg border p-1 shadow-lg ${styles.border} ${styles.secondaryBg}`}>
-                                            <button type="button" role="menuitem" onClick={() => { setExportMenuOpen(false); exportNote("docx"); }} className={`block w-full rounded-md px-3 py-2 text-left text-sm ${styles.secondaryBgHover}`}>Download Word (.docx)</button>
-                                            <button type="button" role="menuitem" onClick={() => { setExportMenuOpen(false); exportNote("pdf"); }} className={`block w-full rounded-md px-3 py-2 text-left text-sm ${styles.secondaryBgHover}`}>Save as PDF</button>
-                                        </div>}
-                                    </div>
-                                    <span className={`mx-1 h-5 w-px shrink-0 ${styles.grayBg}`} />
-                                    <button type="button" onClick={() => setDeleteId(activeNote.id)} aria-label={`Delete ${activeNote.title}`} title="Delete note" className="shrink-0 rounded p-2 text-gray-400 hover:bg-red-500/10 hover:text-red-500">
-                                        <Trash2 className="h-4 w-4" />
-                                    </button>
-                                    </div>
-                                    {exportStatus && <p role="status" className={`basis-full px-2 text-xs ${styles.secondaryText}`}>{exportStatus}</p>}
-                                </div>
-                            </header>
-
-                            <div className="modal-scroll flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-3 py-4 sm:px-6 sm:py-7 lg:px-10 lg:py-9">
-                                <textarea
-                                    rows={1}
-                                    value={activeNote.title}
-                                    ref={(element) => {
-                                        if (!element) return;
-                                        element.style.height = "auto";
-                                        element.style.height = `${element.scrollHeight}px`;
-                                    }}
-                                    onChange={(event) => {
-                                        event.currentTarget.style.height = "auto";
-                                        event.currentTarget.style.height = `${event.currentTarget.scrollHeight}px`;
-                                        updateActiveNote({ title: event.target.value });
-                                    }}
-                                    onKeyDown={(event) => {
-                                        if (event.key === "Enter") event.preventDefault();
-                                    }}
-                                    onFocus={() => {
-                                        editorSelectionRef.current = null;
-                                    }}
-                                    placeholder="Untitled note"
-                                    aria-label="Note title"
-                                    className={`block w-full resize-none overflow-hidden whitespace-pre-wrap break-words border-b pb-4 ${styles.border} min-w-0 bg-transparent text-xl font-serif font-semibold outline-none sm:text-2xl lg:text-3xl ${styles.primaryText}`}
-                                />
-                                <div
-                                    ref={editorRef}
-                                    key={activeNote.id}
-                                    contentEditable
-                                    suppressContentEditableWarning
-                                    onInput={handleEditorInput}
-                                    onPaste={handleEditorPaste}
-                                    onKeyDown={handleEditorKeyDown}
-                                    onMouseUp={rememberEditorSelection}
-                                    onKeyUp={rememberEditorSelection}
-                                    onClick={handleTableAction}
-                                    onPointerDown={resizeTableColumn}
-                                    onPointerMove={updateTableResizeCursor}
-                                    onPointerLeave={() => {
-                                        if (editorRef.current) editorRef.current.style.cursor = "";
-                                    }}
-                                    data-placeholder="Start writing..."
-                                    aria-label="Note content"
-                                    className={`note-editor ${darkMode ? "note-editor-dark" : "note-editor-light"} mt-4 min-h-[12rem] w-full min-w-0 max-w-full flex-1 bg-transparent text-base leading-7 outline-none ${styles.primaryText}`}
-                                />
-                            </div>
-                            <NoteTableControls
+                            <NotesDocumentEditor
+                                activeNote={activeNote}
+                                styles={styles}
+                                darkMode={darkMode}
+                                editorRef={editorRef}
+                                editorSelectionRef={editorSelectionRef}
+                                updateActiveNote={updateActiveNote}
+                                handleEditorInput={handleEditorInput}
+                                handleEditorPaste={handleEditorPaste}
+                                handleEditorKeyDown={handleEditorKeyDown}
+                                handleEditorMouseUp={handleEditorMouseUp}
+                                rememberEditorSelection={rememberEditorSelection}
+                                handleTableAction={handleTableAction}
+                                resizeTableColumn={resizeTableColumn}
+                                updateTableResizeCursor={updateTableResizeCursor}
+                            /><NoteTableControls
                                 activeTable={activeTable}
                                 tableHandleMenu={tableHandleMenu}
                                 styles={styles}
@@ -1954,32 +1837,7 @@ export default function NotesPage() {
                                 canMoveCell={canMoveCell}
                                 getColumnCount={getColumnCount}
                             />
-                            <footer className={`flex shrink-0 flex-wrap items-center justify-end gap-2 border-t px-3 py-2 ${styles.border}`}>
-                                <div className="flex w-full gap-2 sm:w-auto">
-                                    <button
-                                        type="button"
-                                        onClick={() => navigate("/study-tools", { state: { tab: "mock-exams" } })}
-                                        className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg
-                                                    px-3 py-2 text-sm font-semibold transition-colors active:scale-[0.98]
-                                                    focus-visible:outline-2 focus-visible:outline-offset-2
-                                                    focus-visible:outline-blue-500 sm:flex-none sm:px-4 ${styles.buttonFrost}`}
-                                    >
-                                        <ClipboardList className="h-4 w-4" />
-                                        Mock Exam
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => navigate("/study-tools", { state: { tab: "flashcards" } })}
-                                        className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2
-                                             text-sm font-semibold transition-colors active:scale-[0.98] focus-visible:outline-2
-                                             focus-visible:outline-offset-2 focus-visible:outline-blue-500 sm:flex-none sm:px-4
-                                             ${styles.blueBg2} ${styles.blueBg2hover}  ${styles.blueBorder}`}
-                                    >
-                                        <BookOpen className="h-4 w-4" />
-                                        Flashcards
-                                    </button>
-                                </div>
-                            </footer>
+                            <NotesActionsFooter onStudy={(tab) => navigate("/study-tools", { state: { tab } })} />
                         </>
                     ) : (
                         <div className="flex h-full items-center justify-center px-6 text-center">
@@ -1998,76 +1856,20 @@ export default function NotesPage() {
                 </main>
             </div>
 
-            {blocker.state === "blocked" && hasUnsavedChanges && (
-                <div className="modal-overlay" role="presentation">
-                    <div
-                        ref={navigationDialogRef}
-                        tabIndex={-1}
-                        role="alertdialog"
-                        aria-modal="true"
-                        aria-labelledby="unsaved-note-title"
-                        aria-describedby="unsaved-note-description"
-                        className={`w-full max-w-md rounded-xl border p-6 ${styles.border} ${styles.secondaryBg} ${styles.shadow}`}
-                    >
-                        <h2 id="notebook-modal-title" className={`text-xl font-semibold ${styles.primaryText}`}>
-                            Save your changes before leaving?
-                        </h2>
-                        <p id="unsaved-note-description" className={`mt-3 text-sm ${styles.secondaryText}`}>
-                            Your note changes have not been saved yet. You can save them before leaving or discard them.
-                        </p>
-                        {savingNoteCount > 0 && (
-                            <p role="status" className={`mt-3 text-sm ${styles.secondaryText}`}>
-                                A save is in progress. Please wait before discarding changes.
-                            </p>
-                        )}
-                        {navigationSaveError && (
-                            <p role="alert" className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600">
-                                {navigationSaveError}
-                            </p>
-                        )}
-                        <div className="mt-8 flex flex-wrap justify-end gap-1.5">
-                            <button
-                                type="button"
-                                onClick={stayOnPage}
-                                className={`px-4 py-2 rounded-md text-sm ${styles.buttonFrost}`}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="button"
-                                disabled={savingNoteCount > 0 || savingBeforeNavigation}
-                                onClick={discardAndProceed}
-                                className={`px-4 py-2 rounded-md text-sm ${styles.buttonFrost}`}
-                            >
-                                Don't Save
-                            </button>
-                            <button
-                                type="button"
-                                disabled={savingNoteCount > 0 || savingBeforeNavigation}
-                                onClick={saveAndProceed}
-                                className={`px-4 py-2 rounded-md text-sm ${styles.buttonPrimary} disabled:cursor-not-allowed disabled:opacity-50`}
-                            >
-                                {savingBeforeNavigation ? "Saving..." : "Save"}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {deleteId && (
-                <div className="modal-overlay" role="presentation" onMouseDown={(event) => {
-                    if (event.target === event.currentTarget) setDeleteId(null);
-                }}>
-                    <div role="dialog" aria-modal="true" aria-labelledby="delete-note-title" className={`w-full max-w-sm rounded-xl border p-5 ${styles.border} ${styles.secondaryBg} ${styles.shadow}`}>
-                        <h2 id="delete-note-title" className={`font-semibold ${styles.primaryText}`}>Delete this note?</h2>
-                        <p className={`mt-2 text-sm ${styles.secondaryText}`}>This action cannot be undone.</p>
-                        <div className="mt-5 flex justify-end gap-2">
-                            <button type="button" onClick={() => setDeleteId(null)} className={`rounded-lg px-4 py-2 text-sm ${styles.buttonGray}`}>Cancel</button>
-                            <button type="button" onClick={deleteNote} className={`rounded-lg px-4 py-2 text-sm ${styles.buttonRed}`}>Delete</button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <NotesPageDialogs
+                showUnsavedChanges={blocker.state === "blocked" && hasUnsavedChanges}
+                navigationDialogRef={navigationDialogRef}
+                styles={styles}
+                savingNoteCount={savingNoteCount}
+                savingBeforeNavigation={savingBeforeNavigation}
+                navigationSaveError={navigationSaveError}
+                onStay={stayOnPage}
+                onDiscard={discardAndProceed}
+                onSaveAndLeave={saveAndProceed}
+                deleteId={deleteId}
+                setDeleteId={setDeleteId}
+                onDelete={deleteNote}
+            />
         </div>
     );
 }

@@ -4,6 +4,20 @@ export default function Styling() {
   const { darkMode } = useDarkMode();
 
   return {
+    // Notes workspace palette, consumed by NotesPage through its CSS custom properties.
+    notesCssVars: darkMode
+      ? {
+          '--bg': '#141311', '--surface': '#1A1816', '--surface-2': '#221F1C',
+          '--surface-3': '#2A2824', '--border': '#3A362F', '--text': '#F2EEE6',
+          '--text-body': '#D9D4CA', '--text-muted': '#A8A297', '--accent': '#9CC9A8',
+          '--accent-ink': '#14211A',
+        }
+      : {
+          '--bg': '#F4F1EA', '--surface': '#FFFFFF', '--surface-2': '#F0EDE6',
+          '--surface-3': '#E8E4DC', '--border': '#D5D0C6', '--text': '#26231F',
+          '--text-body': '#49453F', '--text-muted': '#68635B', '--accent': '#28663E',
+          '--accent-ink': '#FFFFFF',
+        },
     themeTransition: 'transition-colors duration-300 ease-in-out',
     blueGradient: 'bg-gradient-to-r from-[#161647] to-[#1d1d63]',
     greenText: darkMode ? 'text-green-400' : 'text-green-700',
@@ -33,7 +47,7 @@ export default function Styling() {
 
     // Backgrounds (dark: secondary sits lighter than primary, like white on #FAFAFA in light)
     primaryBg: darkMode ? 'bg-[#171717]' : 'bg-[#FAFAFA]',
-    secondaryBg: darkMode ? 'bg-[#202020]' : 'bg-[#FFFFFF]',
+    secondaryBg: darkMode ? 'bg-[#121212]' : 'bg-[#F7F7F7]',
     sidebarCanvasBg: darkMode ? 'bg-[#090A0F]' : 'bg-[#F3F4FA]',
     sidebarBg: darkMode ? 'bg-[#12141B]' : 'bg-[#FAFAFD]',
     sidebarActiveBg: darkMode ? 'bg-[#242642]' : 'bg-[#E9E9FF]',
@@ -86,13 +100,16 @@ export default function Styling() {
 
     // Hovers
     primaryBgHover: darkMode ? 'hover:bg-[#1f1f1f]' : 'hover:bg-[#f0f0f0]',
-    secondaryBgHover: darkMode ? 'hover:bg-[#2a2a2a] cursor-pointer' : 'hover:bg-[#f5f5f5] cursor-pointer',
+    secondaryBgHover: darkMode ? 'hover:bg-[#1E1E1E] cursor-pointer' : 'hover:bg-[#F0F0F0] cursor-pointer',
     headerHover: darkMode ? 'hover:bg-[#2e2e2e]' : 'hover:bg-[#f0f0f0]',
+
+    secondaryBgActive: darkMode ? 'bg-[#1E1E1E]' : 'bg-[#F0F0F0]',
+
 
     // Inputs
     input: darkMode
-  ? 'focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-400 bg-[#292929] border-[#4A4A4A] text-[#E0E0E0] placeholder:text-[#8A8A8A]'
-  : 'focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 bg-[#FAFAFA] border-[#BDBDBD] text-[#333333] placeholder:text-[#707070]',
+  ? 'focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-400 bg-[#292929] border-[#3A3A3A] text-[#E0E0E0] placeholder:text-[#8A8A8A]'
+  : 'focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 bg-[#FAFAFA] border-[#E0E0E0] text-[#333333] placeholder:text-[#707070]',
     dotTheme: darkMode
       ? 'text-[#C9C9C9] hover:bg-[#3C3C3C]'
       : 'text-[#333333] hover:bg-gray-200',
@@ -141,8 +158,8 @@ export default function Styling() {
       : 'cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 border border-blue-800/20 bg-blue-600 text-white transition-all duration-200 hover:bg-blue-700 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600',
     // Danger/delete: flat red counterpart to buttonPrimary, same border, transition, press scale and focus ring
     buttonDanger: darkMode
-      ? 'cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 border border-white/10 bg-red-700 text-white transition-all duration-200 hover:bg-red-600 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400'
-      : 'cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 border border-red-800/20 bg-red-600 text-white transition-all duration-200 hover:bg-red-700 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600',
+  ? 'cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 border border-white/10 bg-red-500/20 transition-all duration-200 hover:bg-red-500/30 hover:border-red-500/50 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400'
+  : 'cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 border border-red-400/30 bg-red-200/50 transition-all duration-200 hover:bg-red-200/80 hover:border-red-400 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600',
     buttonPurple: `cursor-pointer disabled:cursor-not-allowed text-white disabled:opacity-60 ${darkMode ? 'bg-purple-700 hover:bg-purple-600' : 'bg-purple-600 hover:bg-purple-700'}`,
     // Yellow needs dark text; white on yellow fails contrast in both modes
     buttonYellow: `cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 text-gray-900 ${darkMode ? 'bg-yellow-500 hover:bg-yellow-400' : 'bg-yellow-400 hover:bg-yellow-500'}`,

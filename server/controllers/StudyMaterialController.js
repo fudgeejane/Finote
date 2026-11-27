@@ -250,6 +250,19 @@ async function generate(req, res) {
   }
 }
 
+async function formatNote(req, res) {
+  try {
+    const { title, content } = req.body || {};
+    if (typeof content !== "string" || content.length > 200000) {
+      throw validationError("Note content is invalid or too long to format.");
+    }
+    const html = await GeminiStudyTools.formatNote({ title, content });
+    return res.json({ html });
+  } catch (error) {
+    return handleError(res, error, "format note");
+  }
+}
+
 async function list(req, res) {
   const filter = { user: req.user._id };
   if (req.query.type !== undefined) {
@@ -424,4 +437,4 @@ async function createMissedFlashcards(req, res) {
   return res.status(201).json({ material: serializeMaterial(material) });
 }
 
-module.exports = { generate, getById, list, remove, update, readProgress, saveProgress, saveAttempt, completeFlashcardSession, createMissedFlashcards };
+module.exports = { generate, formatNote, getById, list, remove, update, readProgress, saveProgress, saveAttempt, completeFlashcardSession, createMissedFlashcards };
