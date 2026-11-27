@@ -203,6 +203,15 @@ const userSchema = new mongoose.Schema(
         min: 0 
     },
 
+    notificationPreferences: {
+      type: new mongoose.Schema({
+        examResult: { inApp: { type: Boolean, default: true }, email: { type: Boolean, default: true } },
+        classReminder: { inApp: { type: Boolean, default: true }, email: { type: Boolean, default: true } },
+        accountSecurity: { inApp: { type: Boolean, default: true }, email: { type: Boolean, default: true } },
+      }, { _id: false }),
+      default: () => ({}),
+    },
+
   },
   { timestamps: true }
 );

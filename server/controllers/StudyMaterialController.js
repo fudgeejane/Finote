@@ -3,6 +3,7 @@ const Notebook = require("../models/Notebook");
 const Note = require("../models/Note");
 const StudyMaterial = require("../models/StudyMaterial");
 const StudyProgress = require("../models/StudyProgress");
+const { createNotification } = require("../services/NotificationService");
 const GeminiStudyTools = require("../services/GeminiStudyTools");
 const uniqueName = require("../utils/uniqueName");
 const { recordLearningActivity, validZone } = require("../utils/recordLearningActivity");
@@ -357,7 +358,7 @@ async function saveProgress(req, res) {
 
 async function saveAttempt(req, res) {
   if (!mongoose.isValidObjectId(req.params.materialId)) return res.status(400).json({ error: "Study material ID is invalid." });
-  const material = await StudyMaterial.findOne({ _id: req.params.materialId, user: req.user._id, type: "mock-exams" }).select("_id questions");
+  const material = await StudyMaterial.findOne({ _id: req.params.materialId, user: req.user._id, type: "mock-exams" }).select("_id title questions");
   if (!material) return res.status(404).json({ error: "Mock exam not found." });
   if (!req.body || typeof req.body.answers !== "object" || Array.isArray(req.body.answers) || typeof req.body.submissionId !== "string" || !/^[\w-]{1,100}$/.test(req.body.submissionId)) return res.status(400).json({ error: "Exam attempt is invalid." });
   if (req.body.timezone !== undefined && !validZone(req.body.timezone)) return res.status(400).json({ error: "Timezone must be a valid IANA timezone." });
@@ -373,6 +374,15 @@ async function saveAttempt(req, res) {
   const result = progress || await StudyProgress.findOne(filter);
   const storedAttempt = result.attempts.find((item) => item.submissionId === attempt.submissionId);
   await recordLearningActivity({ user: req.user._id, eventId: `exam:${material._id}:${attempt.submissionId}`, type: "mock-exam-submitted", reference: material._id, title: "", score: storedAttempt?.score ?? score, occurredAt: storedAttempt?.completedAt || attempt.completedAt, timezone: req.body.timezone });
+  await createNotification({
+    user: req.user._id,
+    dedupeKey: `exam:${material._id}:${attempt.submissionId}`,
+    type: "exam-result",
+    title: "Your exam results are ready",
+    message: `${material.title || "Your mock exam"}: ${score == null ? "Review your submitted answers." : `you scored ${score}%.`}`,
+    href: `/mock-exams/${material._id}`,
+    occurredAt: storedAttempt?.completedAt || attempt.completedAt,
+  });
   return res.status(201).json({ attempts: result.attempts });
 }
 

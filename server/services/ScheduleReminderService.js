@@ -1,7 +1,6 @@
 const Schedule = require("../models/Schedule");
 const ScheduleReminder = require("../models/ScheduleReminder");
-const User = require("../models/User");
-const { sendClassReminder } = require("./EmailService");
+const { createNotification } = require("./NotificationService");
 
 const DAY_INDEX = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 0 };
 function zonedParts(date, timezone) {
@@ -53,9 +52,17 @@ async function processDueReminders(now = new Date()) {
       try {
         const current = await Schedule.findOne({ _id: schedule._id, updatedAt: schedule.updatedAt, reminderEnabled: true }).lean();
         if (!current) { await ScheduleReminder.deleteOne({ _id: delivery._id, status: "sending" }); continue; }
-        const user = await User.findById(schedule.user).select("email emailVerifiedAt").lean();
-        if (!user?.email || !user.emailVerifiedAt) { await ScheduleReminder.updateOne({ _id: delivery._id }, { $set: { status: "pending", retryAt: new Date(now.getTime() + 60 * 60_000) } }); continue; }
-        await sendClassReminder(user.email, schedule, occurrence);
+        const classTime = occurrence.toLocaleTimeString("en", { timeZone: schedule.timezone, hour: "numeric", minute: "2-digit" });
+        const lead = schedule.reminder === 60 ? "1 hour" : `${schedule.reminder} minutes`;
+        await createNotification({
+          user: schedule.user,
+          dedupeKey: `class:${key}`,
+          type: "class-reminder",
+          title: `Upcoming class: ${schedule.subject}`,
+          message: `${schedule.subject} starts in ${lead}, at ${classTime}.`,
+          href: "/schedule",
+          occurredAt: now,
+        });
         await ScheduleReminder.updateOne({ _id: delivery._id, status: "sending" }, { $set: { status: "sent" } });
       } catch (error) {
         console.error("Class reminder delivery failed:", error.message);

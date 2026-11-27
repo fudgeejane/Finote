@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Link,
   NavLink,
@@ -78,20 +78,55 @@ const searchItems = [
   },
 ];
 
+function formatNotificationTime(value) {
+  const date = new Date(value);
+  return `${date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}, ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+}
+
 export default function PrivateLayout() {
   const styles = Styling();
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user, signOut, apiRequest } = useAuth();
   const { darkMode, toggleDarkMode } = useDarkMode();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef(null);
   const searchTriggerRef = useRef(null);
   const profileMenuRef = useRef(null);
   const notificationsRef = useRef(null);
+
+  const loadNotifications = useCallback(async () => {
+    setNotificationsLoading(true);
+    try {
+      const result = await apiRequest("/notifications");
+      setNotifications(result.notifications || []);
+      setUnreadCount(result.unreadCount || 0);
+    } catch { /* Keep the last loaded notifications visible when offline. */ }
+    finally { setNotificationsLoading(false); }
+  }, [apiRequest]);
+
+  useEffect(() => {
+    loadNotifications();
+    const timer = window.setInterval(loadNotifications, 60_000);
+    return () => window.clearInterval(timer);
+  }, [loadNotifications]);
+
+  const markNotificationRead = async (notification) => {
+    if (!notification.readAt) {
+      setNotifications((current) => current.map((item) => item._id === notification._id ? { ...item, readAt: new Date().toISOString() } : item));
+      setUnreadCount((count) => Math.max(0, count - 1));
+      try { const result = await apiRequest(`/notifications/${notification._id}/read`, { method: "PATCH", body: "{}" }); setUnreadCount(result.unreadCount); }
+      catch { loadNotifications(); }
+    }
+    setNotificationsOpen(false);
+    navigate(notification.href);
+  };
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -199,28 +234,35 @@ export default function PrivateLayout() {
               <button
                 type="button"
                 onClick={() => {
-                  setNotificationsOpen((open) => !open);
+                  setNotificationsOpen((open) => { if (!open) loadNotifications(); return !open; });
                   setProfileMenuOpen(false);
                 }}
                 aria-label="Notifications"
+                title={unreadCount ? `${unreadCount} unread notifications` : "Notifications"}
                 aria-expanded={notificationsOpen}
                 aria-controls="notifications-panel"
                 className={`relative flex h-9 w-9 items-center justify-center rounded-full border transition-colors ${styles.border} ${styles.secondaryBg} ${styles.secondaryBgHover}`}
               >
                 <Bell className="h-4 w-4" />
-                <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-rose-500" />
+                {unreadCount > 0 && <span aria-hidden="true" className="absolute -right-1 -top-1 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[9px] font-bold text-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}
               </button>
               {notificationsOpen && (
                 <div
                   id="notifications-panel"
                   role="dialog"
                   aria-label="Notifications"
-                  className={`absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-lg border p-4 shadow-xl ${styles.border} ${styles.secondaryBg}`}
+                  className={`absolute right-0 top-full z-50 mt-2 w-80 max-w-[calc(100vw-1.5rem)] rounded-lg border shadow-xl ${styles.border} ${styles.secondaryBg}`}
                 >
-                  <p className="font-semibold">Notifications</p>
-                  <p className={`mt-2 text-sm ${styles.sidebarMutedText}`}>
-                    Your Biology assessment results are ready to review.
-                  </p>
+                  <div className={`flex items-center justify-between border-b px-4 py-3 ${styles.border}`}>
+                    <p className="font-semibold">Notifications</p>
+                    {unreadCount > 0 && <button type="button" className={`text-xs ${styles.blueText}`} onClick={async () => { try { const result = await apiRequest("/notifications/all/read", { method: "PATCH", body: "{}" }); setNotifications((items) => items.map((item) => ({ ...item, readAt: item.readAt || new Date().toISOString() }))); setUnreadCount(result.unreadCount); } catch { loadNotifications(); } }}>Mark all read</button>}
+                  </div>
+                  <div className="max-h-96 overflow-y-auto" aria-live="polite">
+                    {notificationsLoading && notifications.length === 0 ? <p className={`p-5 text-center text-sm ${styles.sidebarMutedText}`}>Loading notifications…</p> : notifications.length === 0 ? <p className={`p-5 text-center text-sm ${styles.sidebarMutedText}`}>You’re all caught up.</p> : notifications.map((item) => <button key={item._id} type="button" onClick={() => markNotificationRead(item)} className={`block w-full border-b px-4 py-3 text-left last:border-0 ${styles.border} ${styles.secondaryBgHover} ${!item.readAt ? "bg-blue-500/5" : ""}`}>
+                      <span className="flex items-start gap-2"><span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${item.readAt ? "bg-transparent" : "bg-blue-500"}`} aria-hidden="true" /><span className="min-w-0"><span className="block text-sm font-semibold">{item.title}</span><span className={`mt-0.5 block text-xs ${styles.sidebarMutedText}`}>{item.message}</span><time className={`mt-1 block text-[10px] ${styles.sidebarMutedText}`} dateTime={item.occurredAt}>{formatNotificationTime(item.occurredAt)}</time></span></span>
+                    </button>)}
+                  </div>
+                  <Link to="/settings" state={{ section: "notifications" }} onClick={() => setNotificationsOpen(false)} className={`block border-t px-4 py-2 text-xs ${styles.border} ${styles.blueText}`}>Notification preferences</Link>
                 </div>
               )}
             </div>
@@ -345,7 +387,7 @@ export default function PrivateLayout() {
 
       {searchOpen && (
         <div
-          className="modal-overlay"
+          className="search-overlay"
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) {

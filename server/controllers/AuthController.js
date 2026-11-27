@@ -13,6 +13,7 @@ const { getProfileCompletionPercentage } = require("../services/ProfileCompletio
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const Session = require("../models/Session");
+const { createNotification } = require("../services/NotificationService");
 
 function getRefreshCookieName() {
   return process.env.COOKIE_NAME || "finote_refresh";
@@ -547,6 +548,19 @@ async function resetPassword(req, res) {
     user.tokenVersion = (user.tokenVersion || 0) + 1;
 
     await user.save();
+
+    try {
+      await createNotification({
+        user: user._id,
+        dedupeKey: `password-reset:${user.tokenVersion}`,
+        type: "account-security",
+        title: "Your password was changed",
+        message: "Your Finote password was reset. Sign in again with your new password.",
+        href: "/settings",
+      });
+    } catch (notificationError) {
+      console.error("Password reset notification could not be created:", notificationError.message);
+    }
 
     clearRefreshCookie(res);
 

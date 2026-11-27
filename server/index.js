@@ -11,7 +11,9 @@ const StudyMaterialRoutes = require("./routes/StudyMaterialRoutes");
 const ScheduleRoutes = require("./routes/ScheduleRoutes");
 const LearningActivityRoutes = require("./routes/LearningActivityRoutes");
 const FinnieRoutes = require("./routes/FinnieRoutes");
+const NotificationRoutes = require("./routes/NotificationRoutes");
 const { startScheduleReminderWorker } = require("./services/ScheduleReminderService");
+const { startNotificationEmailWorker } = require("./services/NotificationService");
 
 const express = require("express");
 const cors = require("cors");
@@ -67,6 +69,7 @@ async function startServer() {
     await mongoose.connect(process.env.MONGODB_URI);
     console.log("MongoDB connected");
     startScheduleReminderWorker();
+    startNotificationEmailWorker();
 
     app.listen(port, () => {
       console.log(`API running at http://localhost:${port}`);
@@ -88,6 +91,7 @@ app.use("/api/study-materials", StudyMaterialRoutes);
 app.use("/api/learning-activity", LearningActivityRoutes);
 app.use("/api/schedules", ScheduleRoutes);
 app.use("/api/finnie", FinnieRoutes);
+app.use("/api/notifications", NotificationRoutes);
 
 app.use((error, req, res, next) => {
   if (error.type === "entity.parse.failed") {

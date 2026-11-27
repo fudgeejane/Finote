@@ -362,7 +362,7 @@ function WeekView({
                       {timeLabel(item.startTime)} – {timeLabel(item.endTime)}
                     </p>
                     <p className="truncate text-xs opacity-90">
-                      Room: {item.room || "Room not set"}
+                      Room: {item.room || "Not set"}
                     </p>
                   </button>
                   {actionButtons(item, `${day.key}:${item.id}`)}

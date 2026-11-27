@@ -3,6 +3,7 @@ const transporter = require("../config/email");
 const VerificationEmail = require("../emails/VerificationEmail");
 const PasswordResetEmail = require("../emails/PasswordResetEmail");
 const ClassReminderEmail = require("../emails/ClassReminderEmail");
+const NotificationEmail = require("../emails/NotificationEmail");
 
 async function sendVerificationEmail(email, code) {
   const { render } = await import("@react-email/render");
@@ -112,8 +113,23 @@ async function sendClassReminder(email, schedule, occurrence) {
   });
 }
 
+async function sendNotificationEmail(email, notification) {
+  const { render } = await import("@react-email/render");
+  const baseUrl = process.env.CLIENT_URL || "http://localhost:5173";
+  const href = new URL(notification.href, baseUrl).toString();
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+    to: email,
+    subject: notification.title,
+    messageId: `<finote-notification-${notification._id}@${process.env.EMAIL_DOMAIN || "finote.local"}>`,
+    text: `${notification.title}\n\n${notification.message}\n\nOpen in Finote: ${href}`,
+    html: await render(React.createElement(NotificationEmail, { ...notification, href })),
+  });
+}
+
 module.exports = {
   sendVerificationEmail,
   sendPasswordResetEmail,
   sendClassReminder,
+  sendNotificationEmail,
 };

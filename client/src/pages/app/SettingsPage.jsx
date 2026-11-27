@@ -1,11 +1,12 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import {
     AsYouType,
     getCountries,
     getCountryCallingCode,
     parsePhoneNumberFromString,
 } from "libphonenumber-js";
-import { ChevronRight, FileText, KeyRound, Search, ShieldCheck, Trash2, Upload, User } from "lucide-react";
+import { Bell, ChevronRight, FileText, KeyRound, Search, ShieldCheck, Trash2, Upload, User } from "lucide-react";
 import Styling from "../../components/theme/Styling";
 import { privacySections, terms } from "../../data/legalContent";
 import { useAuth } from "../../auth/AuthContext";
@@ -66,6 +67,7 @@ const settingsSections = [
         items: [
             { id: "profile", label: "Personal details", description: "Manage your profile information", icon: User },
             { id: "account-settings", label: "Account settings", description: "Password and account actions", icon: KeyRound },
+            { id: "notifications", label: "Notifications", description: "Choose in-app and email alerts", icon: Bell },
         ],
     },
     {
@@ -79,16 +81,38 @@ const settingsSections = [
 
 export default function SettingsPage() {
     const styles = Styling();
+    const location = useLocation();
     const { user, apiRequest, setUser } = useAuth();
-    const [activeSection, setActiveSection] = useState("profile");
+    const [activeSection, setActiveSection] = useState(location.state?.section || "profile");
     const [search, setSearch] = useState("");
     const [profile, setProfile] = useState(() => getInitialProfile(user));
     const [savingProfile, setSavingProfile] = useState(false);
     const [pictureBusy, setPictureBusy] = useState(false);
     const [passwords, setPasswords] = useState({ current: "", next: "", confirm: "" });
     const [accountMessage, setAccountMessage] = useState("");
+    const [preferences, setPreferences] = useState({ examResult: { inApp: true, email: true }, classReminder: { inApp: true, email: true }, accountSecurity: { inApp: true, email: true } });
+    const [preferencesSaving, setPreferencesSaving] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const pictureInputRef = useRef(null);
+
+    useEffect(() => {
+        if (location.state?.section) setActiveSection(location.state.section);
+    }, [location.state]);
+
+    useEffect(() => {
+        if (activeSection !== "notifications") return;
+        let active = true;
+        apiRequest("/notifications/preferences").then(({ preferences: saved }) => { if (active && saved) setPreferences((current) => ({ ...current, ...saved })); }).catch(() => toast.error("Could not load notification preferences."));
+        return () => { active = false; };
+    }, [activeSection, apiRequest]);
+
+    const saveNotificationPreferences = async (event) => {
+        event.preventDefault();
+        setPreferencesSaving(true);
+        try { const result = await apiRequest("/notifications/preferences", { method: "PUT", body: JSON.stringify({ preferences }) }); setPreferences((current) => ({ ...current, ...result.preferences })); toast.success("Notification preferences saved."); }
+        catch (error) { toast.error(error.message || "Could not save notification preferences."); }
+        finally { setPreferencesSaving(false); }
+    };
 
     const filteredSections = useMemo(() => settingsSections
         .map((section) => ({
@@ -332,6 +356,13 @@ export default function SettingsPage() {
                         </ol>
                     ) : (
                         <>
+                            {activeSection === "notifications" && (
+                                <form onSubmit={saveNotificationPreferences} className="space-y-6">
+                                    <p className={`text-sm ${styles.secondaryText}`}>Choose where Finote can notify you about learning and account activity.</p>
+                                    <div className="overflow-x-auto"><table className="w-full min-w-[30rem] text-left text-sm"><thead><tr className={`border-b ${styles.border}`}><th className="py-3 pr-4 font-medium">Event</th><th className="px-3 py-3 text-center font-medium">In app</th><th className="px-3 py-3 text-center font-medium">Email</th></tr></thead><tbody>{[["examResult", "Exam results"], ["classReminder", "Class reminders"], ["accountSecurity", "Account and security updates"]].map(([key, label]) => <tr key={key} className={`border-b last:border-0 ${styles.border}`}><th scope="row" className="py-4 pr-4 font-medium">{label}</th>{["inApp", "email"].map((channel) => <td key={channel} className="px-3 py-4 text-center"><input type="checkbox" aria-label={`${label}: ${channel === "inApp" ? "in app" : "email"}`} checked={preferences[key][channel]} onChange={(event) => setPreferences((current) => ({ ...current, [key]: { ...current[key], [channel]: event.target.checked } }))} className="h-4 w-4 accent-blue-600" /></td>)}</tr>)}</tbody></table></div>
+                                    <button type="submit" disabled={preferencesSaving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60">{preferencesSaving ? "Saving…" : "Save preferences"}</button>
+                                </form>
+                            )}
                             {activeSection === "profile" && (
                                 <form onSubmit={saveProfile} className="space-y-7">
                                     <section aria-labelledby="personal-details-heading">
