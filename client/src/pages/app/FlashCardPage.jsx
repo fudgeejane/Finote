@@ -3,7 +3,6 @@ import { Check, ChevronLeft, ChevronRight, RotateCcw, Shuffle } from "lucide-rea
 import { useParams } from "react-router-dom";
 import Styling from "../../components/theme/Styling";
 import { useAuth } from "../../auth/AuthContext";
-import { activityRequest } from "../../utils/learningActivity";
 
 function shuffledIndices(length) {
     const indices = Array.from({ length }, (_, index) => index);
@@ -27,7 +26,6 @@ export default function FlashCardPage() {
     const [flipStarted, setFlipStarted] = useState(false);
     const [activityError, setActivityError] = useState("");
     const completionEventRef = useRef("");
-    const usageEventRef = useRef("");
     const isCurrentMaterial = loadState?.materialId === materialId;
     const material = isCurrentMaterial ? loadState.material : null;
     const loading = !isCurrentMaterial || loadState.status === "loading";
@@ -52,18 +50,6 @@ export default function FlashCardPage() {
         ? Object.values(ratings.byCard).filter((rating) => rating === "review-again").length
         : 0;
 
-    const recordStudyUse = async () => {
-        const eventId = usageEventRef.current?.materialId === materialId
-            ? usageEventRef.current.eventId
-            : `flashcards-used:${materialId}:${crypto.randomUUID()}`;
-        usageEventRef.current = { materialId, eventId };
-        try {
-            await apiRequest("/learning-activity", activityRequest("flashcards-used", materialId, eventId));
-            setActivityError("");
-        } catch (error) {
-            setActivityError(error.message);
-        }
-    };
 
     useEffect(() => {
         let active = true;
@@ -86,6 +72,7 @@ export default function FlashCardPage() {
                 const saved = await apiRequest(`/study-materials/${encodeURIComponent(materialId)}/progress`);
                 setCardOrder({ materialId, indices: saved.state?.indices?.length === savedMaterial.cards.length ? saved.state.indices : savedMaterial.cards.map((_, index) => index) });
                 setProgress({ materialId, cardIndex: saved.state?.cardIndex || 0, showAnswer: Boolean(saved.state?.showAnswer), complete: Boolean(saved.state?.complete) });
+                if (saved.state?.complete && saved.state?.sessionId) completionEventRef.current = saved.state.sessionId;
                 setFlipStarted(false);
                 setRatings({ materialId, byCard: saved.state?.ratings || {} });
                 setReviewOnly(Boolean(saved.state?.reviewOnly));
@@ -122,7 +109,6 @@ export default function FlashCardPage() {
                 }));
             } else if ((event.key === " " || event.key === "Enter") && !onFlipControl) {
                 event.preventDefault();
-                recordStudyUse();
                 setFlipStarted(true);
                 setProgress((current) => ({ ...current, materialId, showAnswer: !current.showAnswer, complete: false }));
             }
@@ -139,12 +125,15 @@ export default function FlashCardPage() {
     });
 
     const completeRound = async () => {
-        const eventId = completionEventRef.current || `flashcards:${materialId}:${crypto.randomUUID()}`;
+        if (cardIndices.some((index) => !["got-it", "review-again"].includes(ratings.byCard[index]))) {
+            setActivityError("Rate every card in this round before completing it.");
+            return;
+        }
+        const eventId = completionEventRef.current || crypto.randomUUID();
         completionEventRef.current = eventId;
-        setProgress({ materialId, cardIndex, showAnswer: false, complete: true });
+        setProgress({ materialId, cardIndex, showAnswer: false, complete: true, sessionId: eventId });
         try {
-            await apiRequest(`/study-materials/${encodeURIComponent(materialId)}/progress`, { method: "PUT", body: JSON.stringify({ state: { materialId, cardIndex, showAnswer: false, complete: true, ratings: ratings.byCard, indices: cardOrder.indices, reviewOnly } }) });
-            await apiRequest("/learning-activity", activityRequest("flashcards-completed", materialId, eventId));
+            await apiRequest(`/study-materials/${encodeURIComponent(materialId)}/sessions`, { method: "POST", body: JSON.stringify({ sessionId: eventId, indices: cardIndices, ratings: ratings.byCard, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" }) });
             setActivityError("");
         } catch (error) { setActivityError(error.message); }
     };
@@ -252,7 +241,6 @@ export default function FlashCardPage() {
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            recordStudyUse();
                                             setFlipStarted(true);
                                             setProgress({ materialId, cardIndex, showAnswer: !showAnswer, complete: false });
                                         }}
@@ -294,6 +282,7 @@ export default function FlashCardPage() {
                                             </button>
                                         </div>
                                     )}
+                                    {activityError && <p role="alert" className={`mt-3 text-center text-sm ${styles.studyDanger}`}>{activityError}</p>}
                                     <div className="mt-4 grid gap-2 sm:gap-4 grid-cols-4">
 
                                         <button

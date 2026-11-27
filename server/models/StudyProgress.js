@@ -5,6 +5,7 @@ const studyProgressSchema = new mongoose.Schema({
   material: { type: mongoose.Schema.Types.ObjectId, ref: "StudyMaterial", required: true },
   state: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
   attempts: { type: [mongoose.Schema.Types.Mixed], default: [] },
+  flashcardSessions: { type: [mongoose.Schema.Types.Mixed], default: [] },
 }, { timestamps: true, collection: "study_progress" });
 
 studyProgressSchema.index({ user: 1, material: 1 }, { unique: true });

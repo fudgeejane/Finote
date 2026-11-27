@@ -5,6 +5,7 @@ const StudyMaterial = require("../models/StudyMaterial");
 const StudyProgress = require("../models/StudyProgress");
 const GeminiStudyTools = require("../services/GeminiStudyTools");
 const uniqueName = require("../utils/uniqueName");
+const { recordLearningActivity, validZone } = require("../utils/recordLearningActivity");
 
 const MAX_TITLE_LENGTH = 100;
 const MAX_NOTE_IDS = 25;
@@ -359,12 +360,46 @@ async function saveAttempt(req, res) {
   const material = await StudyMaterial.findOne({ _id: req.params.materialId, user: req.user._id, type: "mock-exams" }).select("_id questions");
   if (!material) return res.status(404).json({ error: "Mock exam not found." });
   if (!req.body || typeof req.body.answers !== "object" || Array.isArray(req.body.answers) || typeof req.body.submissionId !== "string" || !/^[\w-]{1,100}$/.test(req.body.submissionId)) return res.status(400).json({ error: "Exam attempt is invalid." });
-  const attempt = { submissionId: req.body.submissionId, answers: req.body.answers, completedAt: new Date(), score: Number.isFinite(req.body.score) ? req.body.score : null };
+  if (req.body.timezone !== undefined && !validZone(req.body.timezone)) return res.status(400).json({ error: "Timezone must be a valid IANA timezone." });
+  if (Object.keys(req.body).some((key) => !["answers", "submissionId", "timezone", "score"].includes(key))) return res.status(400).json({ error: "Exam attempt is invalid." });
+  const normalized = (value) => String(value || "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+  const gradable = (material.questions || []).filter((q) => Boolean(q.options?.length) || ["True or False", "Fill in the Blanks", "Identification", "Matching Type"].includes(q.type));
+  const score = gradable.length ? Math.round(gradable.filter((q) => normalized(req.body.answers[q.id || q.prompt]) === normalized(q.answer)).length / gradable.length * 100) : null;
+  const attempt = { submissionId: req.body.submissionId, answers: req.body.answers, completedAt: new Date(), score };
   const filter = { user: req.user._id, material: material._id };
-  await StudyProgress.updateOne(filter, { $setOnInsert: { user: req.user._id, material: material._id } }, { upsert: true });
+  try { await StudyProgress.updateOne(filter, { $setOnInsert: { user: req.user._id, material: material._id } }, { upsert: true }); }
+  catch (error) { if (error.code !== 11000) throw error; }
   const progress = await StudyProgress.findOneAndUpdate({ ...filter, "attempts.submissionId": { $ne: attempt.submissionId } }, { $push: { attempts: { $each: [attempt], $slice: -50 } } }, { new: true });
   const result = progress || await StudyProgress.findOne(filter);
+  const storedAttempt = result.attempts.find((item) => item.submissionId === attempt.submissionId);
+  await recordLearningActivity({ user: req.user._id, eventId: `exam:${material._id}:${attempt.submissionId}`, type: "mock-exam-submitted", reference: material._id, title: "", score: storedAttempt?.score ?? score, occurredAt: storedAttempt?.completedAt || attempt.completedAt, timezone: req.body.timezone });
   return res.status(201).json({ attempts: result.attempts });
+}
+
+async function completeFlashcardSession(req, res) {
+  if (!mongoose.isValidObjectId(req.params.materialId)) return res.status(400).json({ error: "Study material ID is invalid." });
+  const material = await StudyMaterial.findOne({ _id: req.params.materialId, user: req.user._id, type: "flashcards" }).select("_id title cards");
+  if (!material) return res.status(404).json({ error: "Flashcard set not found." });
+  const { sessionId, indices, ratings, timezone } = req.body || {};
+  if (timezone !== undefined && !validZone(timezone)) return res.status(400).json({ error: "Timezone must be a valid IANA timezone." });
+  if (Object.keys(req.body || {}).some((key) => !["sessionId", "indices", "ratings", "timezone"].includes(key)) || typeof sessionId !== "string" || !/^[\w-]{1,100}$/.test(sessionId) || !Array.isArray(indices) || !indices.length || !ratings || typeof ratings !== "object" || Array.isArray(ratings)) return res.status(400).json({ error: "Completed flashcard session is invalid." });
+  const unique = new Set(indices);
+  if (unique.size !== indices.length || indices.some((index) => !Number.isInteger(index) || index < 0 || index >= material.cards.length)) return res.status(400).json({ error: "Card order is invalid." });
+  if (Object.entries(ratings).some(([index, rating]) => !/^\d+$/.test(index) || Number(index) < 0 || Number(index) >= material.cards.length || !["got-it", "review-again"].includes(rating))) return res.status(400).json({ error: "Card ratings are invalid." });
+  if (indices.some((index) => !["got-it", "review-again"].includes(ratings[index]))) return res.status(400).json({ error: "Rate every card in the completed round." });
+  const gotIt = indices.filter((index) => ratings[index] === "got-it").length;
+  const reviewAgain = indices.length - gotIt;
+  const completedAt = new Date();
+  const filter = { user: req.user._id, material: material._id };
+  const session = { sessionId, completedAt, cardsReviewed: indices.length, gotIt, reviewAgain };
+  try { await StudyProgress.updateOne(filter, { $setOnInsert: { user: req.user._id, material: material._id } }, { upsert: true }); }
+  catch (error) { if (error.code !== 11000) throw error; }
+  await StudyProgress.updateOne({ ...filter, "flashcardSessions.sessionId": { $ne: sessionId } }, { $push: { flashcardSessions: { $each: [session], $slice: -500 } } });
+  const stored = await StudyProgress.findOne(filter).lean();
+  const prior = (stored.flashcardSessions || []).find((item) => item.sessionId === sessionId);
+  if (prior.cardsReviewed !== indices.length || prior.gotIt !== gotIt || prior.reviewAgain !== reviewAgain) return res.status(409).json({ error: "Session ID was already used for a different completed round." });
+  await recordLearningActivity({ user: req.user._id, eventId: `flashcards:${material._id}:${sessionId}`, type: "flashcards-completed", reference: material._id, title: material.title, session: sessionId, cardsReviewed: indices.length, gotIt, reviewAgain, occurredAt: prior.completedAt, timezone });
+  return res.status(201).json({ session: prior });
 }
 
 async function createMissedFlashcards(req, res) {
@@ -379,4 +414,4 @@ async function createMissedFlashcards(req, res) {
   return res.status(201).json({ material: serializeMaterial(material) });
 }
 
-module.exports = { generate, getById, list, remove, update, readProgress, saveProgress, saveAttempt, createMissedFlashcards };
+module.exports = { generate, getById, list, remove, update, readProgress, saveProgress, saveAttempt, completeFlashcardSession, createMissedFlashcards };

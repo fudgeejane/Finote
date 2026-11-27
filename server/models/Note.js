@@ -28,11 +28,13 @@ const NoteSchema = new mongoose.Schema(
       maxlength: 128,
       default: undefined,
     },
+    createId: { type: String, maxlength: 100, default: undefined },
   },
   { timestamps: true, collection: "notes" }
 );
 
 NoteSchema.index({ user: 1, notebook: 1, updatedAt: -1 });
+NoteSchema.index({ user: 1, createId: 1 }, { unique: true, partialFilterExpression: { createId: { $type: "string" } } });
 NoteSchema.index(
   { user: 1, legacyId: 1 },
   { unique: true, partialFilterExpression: { legacyId: { $type: "string" } } }

@@ -19,7 +19,6 @@ import {
     Download,
 } from "lucide-react";
 import Styling from "../../components/theme/Styling";
-import { activityRequest } from "../../utils/learningActivity";
 import { useDarkMode } from "../../components/theme/DarkModeContext";
 import { useAuth } from "../../auth/AuthContext";
 import NoteTableControls from "../../components/utils/notes/NoteTableControls";
@@ -475,6 +474,7 @@ export default function NotesPage() {
     const hasUnsavedChangesRef = useRef(false);
     const pendingSaveCountRef = useRef(0);
     const saveQueueRef = useRef(Promise.resolve());
+    const createNoteOperationRef = useRef("");
     const latestNotesRef = useRef([]);
     const navigationDialogRef = useRef(null);
     const [notes, setNotes] = useState([]);
@@ -494,7 +494,6 @@ export default function NotesPage() {
     const [savingBeforeNavigation, setSavingBeforeNavigation] = useState(false);
     const [navigationSaveError, setNavigationSaveError] = useState("");
     const [exportStatus, setExportStatus] = useState("");
-    const [activityRetryNote, setActivityRetryNote] = useState(null);
     const blocker = useBlocker(({ currentLocation, nextLocation }) =>
         hasUnsavedChangesRef.current &&
         (
@@ -855,20 +854,19 @@ export default function NotesPage() {
         }
         if (loading) return;
         setSaveError("");
+        if (!createNoteOperationRef.current || createNoteOperationRef.current.notebookId !== notebookId) createNoteOperationRef.current = { notebookId, id: crypto.randomUUID() };
         try {
             const { note } = await apiRequest("/notes", {
                 method: "POST",
-                body: JSON.stringify({ notebookId, title: "Untitled note", content: "" }),
+                body: JSON.stringify({ notebookId, title: "Untitled note", content: "", createId: createNoteOperationRef.current.id, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" }),
             });
+            createNoteOperationRef.current = "";
             editorHistoryRef.current[note.id] = { stack: [""], index: 0, lastInputAt: 0 };
             noteVersionsRef.current.set(note.id, 0);
             persistedNotesRef.current.set(note.id, { ...note });
             replaceNotes((current) => [note, ...current]);
             setActiveId(note.id);
             setQuery("");
-            setActivityRetryNote(note);
-            await apiRequest("/learning-activity", activityRequest("note-created", note.id, `note:${note.id}`));
-            setActivityRetryNote(null);
             window.requestAnimationFrame(() => editorRef.current?.focus());
         } catch (error) {
             setSaveError(error.message);
@@ -1678,12 +1676,6 @@ export default function NotesPage() {
                         <div role="alert" className="flex items-center justify-between gap-3 border-b border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-600">
                             <span>{saveError}</span>
                             {activeNote && <button type="button" onClick={() => flushNoteSave(activeNote)} className="shrink-0 font-semibold underline">Retry save</button>}
-                        </div>
-                    )}
-                    {activityRetryNote && (
-                        <div role="alert" className="flex flex-wrap items-center justify-between gap-2 border-b border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-600">
-                            <span>Note saved, but study activity could not be recorded.</span>
-                            <button type="button" onClick={async () => { try { await apiRequest("/learning-activity", activityRequest("note-created", activityRetryNote.id, `note:${activityRetryNote.id}`)); setActivityRetryNote(null); } catch (error) { setSaveError(error.message); } }} className="font-semibold underline">Retry activity</button>
                         </div>
                     )}
                     {loading ? (

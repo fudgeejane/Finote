@@ -4,7 +4,6 @@ import { useBlocker, useParams } from "react-router-dom";
 import Styling from "../../components/theme/Styling";
 import useDialogFocus from "../../components/utils/study tools/useDialogFocus";
 import { useAuth } from "../../auth/AuthContext";
-import { activityRequest } from "../../utils/learningActivity";
 
 const normalizeAnswer = (value) =>
     String(value || "")
@@ -53,8 +52,6 @@ export default function MockExamPage() {
     const confirmDialogRef = useRef(null);
     const leaveDialogRef = useRef(null);
     const submissionIdRef = useRef("");
-    const usageEventRef = useRef("");
-    const [activityRetry, setActivityRetry] = useState(null);
     const [pendingSubmission, setPendingSubmission] = useState(null);
     const isCurrentMaterial = loadState?.materialId === materialId;
     const material = isCurrentMaterial ? loadState.material : null;
@@ -188,11 +185,6 @@ export default function MockExamPage() {
     }, [apiRequest, material, materialId, progress, submitted]);
 
     const setAnswer = (question, value) => {
-        const eventId = usageEventRef.current?.materialId === materialId
-            ? usageEventRef.current.eventId
-            : `mock-exam-used:${materialId}:${crypto.randomUUID()}`;
-        usageEventRef.current = { materialId, eventId };
-        apiRequest("/learning-activity", activityRequest("mock-exam-used", materialId, eventId)).catch((error) => setActionError(error.message));
         const key = question.id || question.prompt;
         setProgress((current) => ({
             materialId,
@@ -220,16 +212,13 @@ export default function MockExamPage() {
         ).catch(() => {});
         const submissionId = submissionIdRef.current || crypto.randomUUID();
         submissionIdRef.current = submissionId;
-        const payload = { answers, score, submissionId };
+        const payload = { answers, submissionId, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" };
         setPendingSubmission(payload);
         try {
             const { attempts: saved } = await apiRequest(`/study-materials/${encodeURIComponent(materialId)}/attempts`, { method: "POST", body: JSON.stringify(payload) });
             setAttempts(saved || []);
-            const activity = { type: "mock-exam-submitted", referenceId: materialId, eventId: `exam:${submissionId}` };
-            setActivityRetry(activity);
-            await apiRequest("/learning-activity", activityRequest(activity.type, activity.referenceId, activity.eventId));
-            setActivityRetry(null);
             setPendingSubmission(null);
+            submissionIdRef.current = "";
             setActionError("");
         } catch (saveError) { setActionError(saveError.message); }
         setConfirmSubmit(false);
@@ -501,8 +490,7 @@ export default function MockExamPage() {
                                     className={`rounded-lg px-4 py-3 text-sm ${styles.studyDanger}`}
                                 >
                                     {actionError}
-                                    {activityRetry && <button type="button" className="ml-3 underline" onClick={async () => { try { await apiRequest("/learning-activity", activityRequest(activityRetry.type, activityRetry.referenceId, activityRetry.eventId)); setActivityRetry(null); setActionError(""); } catch (error) { setActionError(error.message); } }}>Retry activity</button>}
-                                    {pendingSubmission && !activityRetry && <button type="button" className="ml-3 underline" onClick={async () => { const payload = pendingSubmission; try { const { attempts: saved } = await apiRequest(`/study-materials/${encodeURIComponent(materialId)}/attempts`, { method: "POST", body: JSON.stringify(payload) }); setAttempts(saved || []); const activity = { type: "mock-exam-submitted", referenceId: materialId, eventId: `exam:${payload.submissionId}` }; setActivityRetry(activity); await apiRequest("/learning-activity", activityRequest(activity.type, activity.referenceId, activity.eventId)); setActivityRetry(null); setPendingSubmission(null); setActionError(""); } catch (error) { setActionError(error.message); } }}>Retry submission</button>}
+                                    {pendingSubmission && <button type="button" className="ml-3 underline" onClick={async () => { const payload = pendingSubmission; try { const { attempts: saved } = await apiRequest(`/study-materials/${encodeURIComponent(materialId)}/attempts`, { method: "POST", body: JSON.stringify(payload) }); setAttempts(saved || []); setPendingSubmission(null); submissionIdRef.current = ""; setActionError(""); } catch (error) { setActionError(error.message); } }}>Retry submission</button>}
                                 </p>
                             )}
                             {viewedAttempt ? (

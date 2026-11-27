@@ -9,6 +9,7 @@ const {
   readProgress,
   saveProgress,
   saveAttempt,
+  completeFlashcardSession,
   createMissedFlashcards,
 } = require("../controllers/StudyMaterialController");
 
@@ -21,6 +22,7 @@ router.post("/generate", generate);
 router.get("/:materialId/progress", readProgress);
 router.put("/:materialId/progress", saveProgress);
 router.post("/:materialId/attempts", saveAttempt);
+router.post("/:materialId/sessions", completeFlashcardSession);
 router.post("/:materialId/missed-flashcards", createMissedFlashcards);
 router.patch("/:materialId", update);
 router.delete("/:materialId", remove);

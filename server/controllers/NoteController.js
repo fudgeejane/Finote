@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const Notebook = require("../models/Notebook");
 const Note = require("../models/Note");
 const uniqueName = require("../utils/uniqueName");
+const { recordLearningActivity } = require("../utils/recordLearningActivity");
 
 const MAX_TITLE_LENGTH = 120;
 const MAX_CONTENT_LENGTH = 750000;
@@ -125,17 +126,49 @@ async function createNote(req, res) {
       req.body.notebookId,
       req.user._id
     );
+    const createId = req.body.createId;
+    if (createId !== undefined && (typeof createId !== "string" || !/^[\w-]{1,100}$/.test(createId))) throw validationError("Note creation ID is invalid.");
+    if (createId) {
+      const existing = await Note.findOne({ user: req.user._id, createId }).lean();
+      if (existing) {
+        if (String(existing.notebook) !== String(notebook._id)) return res.status(409).json({ error: "Note creation ID was already used for another notebook." });
+        await recordLearningActivity({ user: req.user._id, eventId: `note:${existing._id}`, type: "note-created", reference: existing._id, title: existing.title, timezone: req.body.timezone });
+        return res.status(201).json({ note: serializeNote(existing, notebook.name) });
+      }
+    }
     const requestedTitle = readTitle(req.body.title) || "Untitled note";
     const existingTitles = await Note.distinct("title", {
       user: req.user._id,
       notebook: notebook._id,
     });
-    const note = await Note.create({
-      user: req.user._id,
-      notebook: notebook._id,
-      title: uniqueName(requestedTitle, existingTitles, MAX_TITLE_LENGTH),
-      content: readContent(req.body.content),
-    });
+    let note;
+    try {
+      note = await Note.create({
+        user: req.user._id,
+        notebook: notebook._id,
+        title: uniqueName(requestedTitle, existingTitles, MAX_TITLE_LENGTH),
+        content: readContent(req.body.content),
+        ...(createId ? { createId } : {}),
+      });
+    } catch (error) {
+      if (error.code !== 11000 || !createId) throw error;
+      note = await Note.findOne({ user: req.user._id, createId }).lean();
+      if (!note) throw error;
+      if (String(note.notebook) !== String(notebook._id)) return res.status(409).json({ error: "Note creation ID was already used for another notebook." });
+    }
+    try {
+      await recordLearningActivity({ user: req.user._id, eventId: `note:${note._id}`, type: "note-created", reference: note._id, title: note.title, timezone: req.body.timezone });
+    } catch (activityError) {
+      if (activityError.code === 11000 && createId) {
+        const existing = await Note.findOne({ user: req.user._id, createId }).lean();
+        if (existing) {
+          if (String(existing.notebook) !== String(notebook._id)) return res.status(409).json({ error: "Note creation ID was already used for another notebook." });
+          await recordLearningActivity({ user: req.user._id, eventId: `note:${existing._id}`, type: "note-created", reference: existing._id, title: existing.title, timezone: req.body.timezone });
+          return res.status(201).json({ note: serializeNote(existing, notebook.name) });
+        }
+      }
+      throw activityError;
+    }
     return res.status(201).json({
       note: serializeNote(note, notebook.name),
     });

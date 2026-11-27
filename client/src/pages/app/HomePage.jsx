@@ -9,6 +9,7 @@ import {
 import Styling from "../../components/theme/Styling";
 import NotebookModal from "../../components/utils/notes/NotebookModal";
 import { useAuth } from "../../auth/AuthContext";
+import fetchLearningActivitySummary from "../../utils/learningActivitySummary";
 
 const MIN_NOTEBOOK_LOADING_MS = 2000;
 const NOTEBOOK_GRID_CLASSES = "grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4";
@@ -174,10 +175,9 @@ export default function HomePage() {
     const greetingName = user?.firstName || user?.email?.split("@")[0] || "there";
     useEffect(() => {
         let active = true;
-        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-        apiRequest(`/learning-activity?timezone=${encodeURIComponent(timezone)}`)
-            .then((result) => { if (active) setActivity(result); })
-            .catch((error) => { if (active) setActivityError(error.message); })
+        fetchLearningActivitySummary(apiRequest)
+            .then((result) => { if (active) { setActivity(result); setActivityError(""); } })
+            .catch((loadError) => { if (active) setActivityError(loadError.message || "Could not load learning activity."); })
             .finally(() => { if (active) setActivityLoading(false); });
         return () => { active = false; };
     }, [apiRequest, activityRetry, user?.id]);
