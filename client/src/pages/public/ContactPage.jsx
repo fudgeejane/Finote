@@ -1,8 +1,4 @@
-import { Mail, MessageSquare, Wrench } from "lucide-react";
 import Styling from "../../components/theme/Styling";
-
-// Add the official address here when it is confirmed.
-const SUPPORT_EMAIL = "";
 
 export default function ContactPage() {
     const styles = Styling();

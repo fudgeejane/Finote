@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, ClipboardCheck, Layers3, MoreHorizontal, BadgePlus } from "lucide-react";
+import { BookOpen, ClipboardCheck, MoreHorizontal, BadgePlus } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Styling from "../../components/theme/Styling";
 import { useDarkMode } from "../../components/theme/DarkModeContext";

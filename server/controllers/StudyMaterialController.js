@@ -358,10 +358,13 @@ async function saveAttempt(req, res) {
   if (!mongoose.isValidObjectId(req.params.materialId)) return res.status(400).json({ error: "Study material ID is invalid." });
   const material = await StudyMaterial.findOne({ _id: req.params.materialId, user: req.user._id, type: "mock-exams" }).select("_id questions");
   if (!material) return res.status(404).json({ error: "Mock exam not found." });
-  if (!req.body || typeof req.body.answers !== "object" || Array.isArray(req.body.answers)) return res.status(400).json({ error: "Exam attempt is invalid." });
-  const attempt = { answers: req.body.answers, completedAt: new Date(), score: Number.isFinite(req.body.score) ? req.body.score : null };
-  const progress = await StudyProgress.findOneAndUpdate({ user: req.user._id, material: material._id }, { $push: { attempts: { $each: [attempt], $slice: -50 } } }, { upsert: true, new: true, setDefaultsOnInsert: true });
-  return res.status(201).json({ attempts: progress.attempts });
+  if (!req.body || typeof req.body.answers !== "object" || Array.isArray(req.body.answers) || typeof req.body.submissionId !== "string" || !/^[\w-]{1,100}$/.test(req.body.submissionId)) return res.status(400).json({ error: "Exam attempt is invalid." });
+  const attempt = { submissionId: req.body.submissionId, answers: req.body.answers, completedAt: new Date(), score: Number.isFinite(req.body.score) ? req.body.score : null };
+  const filter = { user: req.user._id, material: material._id };
+  await StudyProgress.updateOne(filter, { $setOnInsert: { user: req.user._id, material: material._id } }, { upsert: true });
+  const progress = await StudyProgress.findOneAndUpdate({ ...filter, "attempts.submissionId": { $ne: attempt.submissionId } }, { $push: { attempts: { $each: [attempt], $slice: -50 } } }, { new: true });
+  const result = progress || await StudyProgress.findOne(filter);
+  return res.status(201).json({ attempts: result.attempts });
 }
 
 async function createMissedFlashcards(req, res) {

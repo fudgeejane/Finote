@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronRight, Trash2, X } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import Styling from "../../theme/Styling";
 
 const DAYS = [
@@ -36,12 +36,16 @@ export default function ScheduleModal({
   busy = false,
   onClose,
   onSave,
-  onDelete,
 }) {
   const localStyles = Styling();
   const styles = providedStyles || localStyles;
   const [step, setStep] = useState(mode === "select" ? "select" : mode === "view" ? "view" : "form");
   const [form, setForm] = useState({ ...DEFAULTS, ...initial });
+  const canSave =
+    Boolean(form.subject?.trim()) &&
+    Boolean(form.startTime) &&
+    Boolean(form.endTime) &&
+    Boolean(form.days?.length);
   const set = (field, value) =>
     setForm((current) => ({ ...current, [field]: value }));
   const toggleDay = (day) =>
@@ -107,7 +111,7 @@ export default function ScheduleModal({
             </div>
             <div className={`flex justify-end gap-2 border-t p-4 ${styles.border}`}>
               <button type="button" onClick={onClose} className={`rounded-lg px-4 py-2 text-sm ${styles.buttonFrost}`}>Close</button>
-              <button type="button" onClick={() => setStep("form")} className={`rounded-lg px-4 py-2 text-sm ${styles.blueBg2} ${styles.blueBg2hover}`}>Edit class</button>
+              <button type="button" onClick={() => setStep("form")} className={`rounded-lg px-4 py-2 text-sm ${styles.buttonPrimary}`}>Edit class</button>
             </div>
           </div>
         ) : step === "select" ? (
@@ -339,8 +343,8 @@ export default function ScheduleModal({
                 </button>
                 <button
                   type="submit"
-                  disabled={!form.days.length || busy}
-                  className={`rounded-lg px-4 py-2 text-sm ${styles.blueBg2} ${styles.blueBg2hover} disabled:opacity-50`}
+                  disabled={!canSave || busy}
+                  className={`rounded-lg px-4 py-2 text-sm ${styles.buttonPrimary} disabled:opacity-50`}
                 >
                   {busy ? "Saving…" : form.id ? "Save changes" : "Add class"}
                 </button>
@@ -398,7 +402,7 @@ export function ScheduleDeleteModal({ item, styles: providedStyles, busy = false
             disabled={busy} 
             onClick={() => onConfirm(item)} 
             aria-label="Confirm deletion"
-            className={`rounded-lg px-4 py-2 text-sm ${styles.redBg2} ${styles.redBg2Hover} cursor-pointer`}
+            className={`rounded-lg px-4 py-2 text-sm ${styles.buttonDanger} cursor-pointer`}
           >
             {busy ? "Deleting…" : "Delete class"}
           </button>

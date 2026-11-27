@@ -9,6 +9,7 @@ const NotebookRoutes = require("./routes/NotebookRoutes");
 const NoteRoutes = require("./routes/NoteRoutes");
 const StudyMaterialRoutes = require("./routes/StudyMaterialRoutes");
 const ScheduleRoutes = require("./routes/ScheduleRoutes");
+const LearningActivityRoutes = require("./routes/LearningActivityRoutes");
 const { startScheduleReminderWorker } = require("./services/ScheduleReminderService");
 
 const express = require("express");
@@ -83,6 +84,7 @@ app.use("/api/users", UserRoutes);
 app.use("/api/notebooks", NotebookRoutes);
 app.use("/api/notes", NoteRoutes);
 app.use("/api/study-materials", StudyMaterialRoutes);
+app.use("/api/learning-activity", LearningActivityRoutes);
 app.use("/api/schedules", ScheduleRoutes);
 
 app.use((error, req, res, next) => {

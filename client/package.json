@@ -16,6 +16,7 @@
     "@editorjs/paragraph": "^2.11.7",
     "@tailwindcss/vite": "^4.3.5",
     "@vaadin/rich-text-editor": "^25.3.7",
+    "docx": "^9.16.1",
     "dom": "^0.0.3",
     "libphonenumber-js": "^1.13.17",
     "lucide-react": "^1.76.0",

@@ -66,11 +66,18 @@ export default function PublicLayout() {
 
     useEffect(() => {
         const auth = searchParams.get("auth");
-        if (auth === "signin" || auth === "signup") setAuthMode(auth);
+        if (auth !== "signin" && auth !== "signup") return undefined;
+        const frame = window.requestAnimationFrame(() => setAuthMode(auth));
+        return () => window.cancelAnimationFrame(frame);
     }, [searchParams]);
 
     return (
         <div className={`min-h-dvh flex flex-col ${styles.primaryBg}`}>
+            <motion.div
+                aria-hidden="true"
+                className="fixed inset-x-0 top-0 z-[60] h-0.5 origin-left bg-blue-600"
+                style={{ scaleX }}
+            />
             <ScrollToHash />
 
             <header className={`sticky top-0 z-50 w-full ${styles.headerBg}`}>
@@ -78,7 +85,7 @@ export default function PublicLayout() {
                     {/* Logo */}
                     <Link to="/" className="flex items-center gap-2">
                         <img src={Logo} alt="Finote" className="h-8 w-auto" />
-                        <span className="hidden sm:inline text-lg md:text-2xl font-sans font-medium text-blue-600 font-serif italic">
+                        <span className="hidden sm:inline text-lg md:text-2xl font-sans font-medium text-blue-500 font-serif italic">
                             Finote
                         </span>
                     </Link>

@@ -2,6 +2,8 @@ import {
   BadgePlus,
   CalendarDays,
   CalendarRange,
+  ChevronLeft,
+  ChevronRight,
   List,
 } from "lucide-react";
 import { DAYS, minute, timeLabel } from "./ScheduleUtils";
@@ -14,13 +16,12 @@ const VIEW_OPTIONS = [
 
 const TABLE_COLUMNS = [
   "Subject",
-  "Course code",
-  "Weekday(s)",
+  "Day(s)",
   "Time",
   "Instructor",
-  "Room / location",
+  "Room",
   "Reminder",
-  "Actions",
+  "",
 ];
 
 export default function ScheduleContainer({
@@ -31,6 +32,7 @@ export default function ScheduleContainer({
   onViewChange,
   onAdd,
   month,
+  setMonth,
   now,
   expandedMonthDay,
   setExpandedMonthDay,
@@ -93,6 +95,7 @@ export default function ScheduleContainer({
         ) : (
           <MonthView
             month={month}
+            setMonth={setMonth}
             now={now}
             classesFor={classesFor}
             styles={styles}
@@ -219,7 +222,7 @@ function ViewToolbar({ loading, styles, view, onViewChange, onAdd }) {
           type="button"
           onClick={onAdd}
           aria-label="Add schedule"
-          className={`flex shrink-0 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${styles.blueBg2} ${styles.blueBg2hover}`}
+          className={`flex shrink-0 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm ${styles.buttonFrost}`}
         >
           <BadgePlus size={16} />
           Add Schedule
@@ -270,24 +273,14 @@ function ScheduleTable({ classes, styles, subjectColor, actionButtons, onEdit })
               key={item.id}
               className={`border-b last:border-0 transition-colors hover:bg-blue-500/5 ${styles.border}`}
             >
-              <td className="px-3 py-3">
-                <button
-                  type="button"
-                  onClick={() => onEdit(item)}
-                  className="flex items-center gap-2 text-left font-semibold"
-                >
-                  <span
-                    className={`h-2.5 w-2.5 shrink-0 rounded-full border ${subjectColor(item).split(" ")[0]}`}
-                  />
-                  {item.subject}
-                </button>
-              </td>
-              <td className="px-3 py-3">
-                <span
-                  className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${subjectColor(item)}`}
-                >
-                  {item.code || "No code"}
-                </span>
+              <td className="min-w-48 px-3 py-3">
+               
+                  <span className="min-w-0">
+                    <span className="block font-semibold">{item.subject}</span>
+                    <span className={`mt-1 text-[11px]`}>
+                      {item.code || "No course code"}
+                    </span>
+                  </span>
               </td>
               <td className="px-3 py-3">
                 <div className="flex flex-wrap gap-1">
@@ -305,13 +298,14 @@ function ScheduleTable({ classes, styles, subjectColor, actionButtons, onEdit })
                 {timeLabel(item.startTime)} – {timeLabel(item.endTime)}
               </td>
               <td className="px-3 py-3">{item.instructor || "—"}</td>
-              <td className="px-3 py-3">
-                {[item.room, item.building].filter(Boolean).join(", ") || "—"}
-              </td>
-              <td className="px-3 py-3">
+             <td className="px-3 py-3">
+              <div>Room: {item.room}</div>
+              <div className="text-[11px] mt-1">{item.building}</div>
+            </td>
+                    <td className="px-3 py-3">
                 {item.reminderEnabled
-                  ? `Email · ${item.reminder} min before`
-                  : "Off"}
+                  ? `${item.reminder} min before`
+                  : "None"}
               </td>
               <td className="px-3 py-2">{actionButtons(item)}</td>
             </tr>
@@ -341,8 +335,8 @@ function WeekView({
         return (
           <section
             key={day.key}
-            className={`min-h-36 border-x p-3 md:min-h-[400px] ${styles.border} ${
-              index === DAYS.length - 1 ? "border-r-0" : ""
+            className={`min-h-36 border-b p-3 md:min-h-[400px] md:border-b-0 md:border-r ${styles.border} ${
+              index === DAYS.length - 1 ? "md:border-r-0" : ""
             } ${isToday ? "bg-blue-500/5" : ""} ${
               todayIndex > index ? "opacity-65" : ""
             }`}
@@ -389,6 +383,7 @@ function WeekView({
 
 function MonthView({
   month,
+  setMonth,
   now,
   classesFor,
   styles,
@@ -401,21 +396,40 @@ function MonthView({
   const monthIndex = month.getMonth();
   const leadingDays = (new Date(year, monthIndex, 1).getDay() + 6) % 7;
   const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-  const calendarDays = [
-    ...Array(leadingDays).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
-  ];
+  const calendarDays = Array.from({ length: 42 }, (_, index) => {
+    const day = index - leadingDays + 1;
+    return day < 1 || day > daysInMonth ? null : day;
+  });
+  const monthTitle = month.toLocaleDateString(undefined, { month: "long", year: "numeric" });
 
   return (
-    <div className="overflow-x-auto p-3">
-      <div className="min-w-[620px]">
-        <div className="grid grid-cols-7">
+    <div className="p-3 sm:p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-1 sm:mb-4">
+        <div>
+          <h2 className={`font-serif text-xl font-semibold sm:text-2xl ${styles.primaryText}`}>{monthTitle}</h2>
+          <p className={`mt-0.5 text-xs ${styles.secondaryText}`}>Your recurring classes at a glance</p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button type="button" aria-label="Previous month" onClick={() => { setExpandedMonthDay(null); setMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1)); }} className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border ${styles.border} ${styles.secondaryBgHover} focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500`}>
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <button type="button" onClick={() => { setExpandedMonthDay(null); setMonth(new Date(now.getFullYear(), now.getMonth(), 1)); }} disabled={year === now.getFullYear() && monthIndex === now.getMonth()} className={`h-9 rounded-lg border px-3 text-sm font-medium ${styles.border} ${styles.secondaryBgHover} focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-default disabled:opacity-50`}>
+            Today
+          </button>
+          <button type="button" aria-label="Next month" onClick={() => { setExpandedMonthDay(null); setMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1)); }} className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border ${styles.border} ${styles.secondaryBgHover} focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500`}>
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+      <div className={`overflow-x-auto rounded-md border ${styles.border}`}>
+        <div className="min-w-[680px]">
+        <div className={`grid grid-cols-7 ${styles.secondaryBg}`}>
           {DAYS.map((day) => (
             <div
               key={day.key}
-              className={`border-b px-2 py-2 text-center text-xs font-semibold ${styles.border} ${styles.secondaryText}`}
+              className={`border-b px-2 py-2.5 text-center text-[11px] font-bold uppercase tracking-wide sm:text-xs ${day.key !== "Sun" ? "border-r" : ""} ${styles.border} ${styles.secondaryText}`}
             >
-              {day.label.slice(0, 3)}
+              <abbr title={day.label} className="no-underline">{day.label.slice(0, 3)}</abbr>
             </div>
           ))}
         </div>
@@ -424,6 +438,7 @@ function MonthView({
             <MonthDay
               key={day ?? `blank-${index}`}
               day={day}
+              index={index}
               year={year}
               monthIndex={monthIndex}
               now={now}
@@ -437,12 +452,14 @@ function MonthView({
           ))}
         </div>
       </div>
+      </div>
     </div>
   );
 }
 
 function MonthDay({
   day,
+  index,
   year,
   monthIndex,
   now,
@@ -453,10 +470,11 @@ function MonthDay({
   expandedMonthDay,
   setExpandedMonthDay,
 }) {
+  const cellBorder = `${index % 7 === 6 ? "" : "border-r"} ${index >= 35 ? "" : "border-b"} ${styles.border}`;
   if (!day) {
     return (
       <div
-        className={`h-28 border-b border-r ${styles.border}`}
+        className={`min-h-24 p-1.5 sm:min-h-28 ${cellBorder}`}
         aria-hidden="true"
       />
     );
@@ -475,19 +493,16 @@ function MonthDay({
 
   return (
     <div
-      className={`min-h-28 border-b border-r p-1.5  ${
-        isToday
-          ? styles.blueBg2
-          : isPast
-            ? "opacity-55"
-            : ""
-      }`}
+      role="group"
+      className={`group min-h-24 p-1.5 transition-colors sm:min-h-28 ${cellBorder} ${isToday ? `${styles.blueBg2} ring-1 ring-inset ring-blue-500/40` : ""}`}
+      aria-label={`${date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}${dayClasses.length ? `, ${dayClasses.length} ${dayClasses.length === 1 ? "class" : "classes"}` : ", no classes"}`}
     >
-      <span
-        className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full text-sm font-semibold ${isToday ? "bg-blue-600 text-white" : ""}`}
-      >
-        {day}
-      </span>
+      <div className="flex items-center justify-between gap-1">
+        <time dateTime={`${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`} className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1 text-xs font-semibold sm:text-sm ${isToday ? "bg-blue-600 text-white" : isPast ? styles.secondaryText : styles.primaryText}`}>
+          {day}
+        </time>
+        {dayClasses.length > 0 && <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${styles.secondaryBg} ${styles.secondaryText}`}>{dayClasses.length}</span>}
+      </div>
       <div className="mt-1 space-y-1">
         {visibleClasses.map((item) => (
           <button
@@ -495,7 +510,8 @@ function MonthDay({
             type="button"
             title={`${timeLabel(item.startTime)} ${item.subject}`}
             onClick={() => onEdit(item)}
-            className={`block min-h-8 w-full truncate rounded border-l-2 px-1.5 py-1 text-left text-xs font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 ${subjectColor(item)}`}
+            aria-label={`${date.toLocaleDateString(undefined, { month: "long", day: "numeric" })}: ${item.subject}, ${timeLabel(item.startTime)} to ${timeLabel(item.endTime)}. Edit schedule.`}
+            className={`block min-h-8 w-full truncate rounded-md border-l-2 px-1.5 py-1 text-left text-[10px] font-semibold transition hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue-500 sm:text-xs ${subjectColor(item)}`}
           >
             {timeLabel(item.startTime)} {item.subject}
           </button>
@@ -508,7 +524,7 @@ function MonthDay({
                 current === dateKey ? null : dateKey,
               )
             }
-            className="block w-full rounded px-1 py-1 text-left text-xs font-semibold "
+            className={`block w-full rounded-md px-1.5 py-1 text-left text-[10px] font-semibold ${styles.blueText} ${styles.secondaryBgHover} focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 sm:text-xs`}
             aria-expanded={expandedMonthDay === dateKey}
           >
             {expandedMonthDay === dateKey
@@ -541,21 +557,24 @@ function SummarySkeleton({ styles }) {
 function ViewSkeleton({ view, styles }) {
   if (view === "Table") {
     return (
-      <div
-        role="status"
-        aria-label="Loading schedule"
-        className="animate-pulse space-y-3 p-5"
-      >
-        {Array.from({ length: 6 }, (_, row) => (
-          <div key={row} className="grid grid-cols-5 gap-4">
-            {Array.from({ length: 5 }, (_, cell) => (
-              <div
-                key={cell}
-                className={`h-7 rounded ${styles.tertiaryBg || "bg-gray-300/40"}`}
-              />
+      <div role="status" aria-label="Loading schedule" aria-busy="true" className="animate-pulse overflow-x-auto">
+        <div className="min-w-[900px] space-y-3 p-5">
+          <div className="grid grid-cols-[minmax(190px,2fr)_repeat(6,minmax(90px,1fr))] gap-4 border-b pb-3">
+            {TABLE_COLUMNS.map((column) => (
+              <div key={column} className={`h-4 rounded ${styles.tertiaryBg || "bg-gray-300/40"}`} />
             ))}
           </div>
-        ))}
+          {Array.from({ length: 6 }, (_, row) => (
+            <div key={row} className="grid grid-cols-[minmax(190px,2fr)_repeat(6,minmax(90px,1fr))] items-center gap-4 py-2">
+              {TABLE_COLUMNS.map((column, cell) => (
+                <div key={column} className="space-y-1.5">
+                  <div className={`h-6 rounded ${styles.tertiaryBg || "bg-gray-300/35"}`} />
+                  {cell === 0 && <div className={`h-4 w-2/3 rounded ${styles.tertiaryBg || "bg-gray-300/25"}`} />}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -564,16 +583,36 @@ function ViewSkeleton({ view, styles }) {
     return (
       <div
         role="status"
-        aria-label="Loading schedule"
-        className="animate-pulse p-4"
+        aria-label="Loading monthly schedule"
+        aria-busy="true"
+        className="animate-pulse p-3 sm:p-4"
       >
-        <div className="grid grid-cols-7 gap-px">
-          {Array.from({ length: 35 }, (_, cell) => (
-            <div
-              key={cell}
-              className={`h-20 rounded border ${styles.border} ${styles.tertiaryBg || "bg-gray-300/20"}`}
-            />
-          ))}
+        <div className="mb-3 flex items-center justify-between gap-3 px-1 sm:mb-4">
+          <div className="space-y-2">
+            <div className={`h-6 w-36 rounded ${styles.tertiaryBg || "bg-gray-300/40"}`} />
+            <div className={`h-3 w-48 rounded ${styles.tertiaryBg || "bg-gray-300/30"}`} />
+          </div>
+          <div className="flex gap-1.5">
+            {[0, 1, 2].map((button) => (
+              <div key={button} className={`h-9 ${button === 1 ? "w-16" : "w-9"} rounded-lg ${styles.tertiaryBg || "bg-gray-300/40"}`} />
+            ))}
+          </div>
+        </div>
+        <div className={`overflow-hidden rounded-xl border ${styles.border}`}>
+          <div className="min-w-[680px]">
+            <div className={`grid grid-cols-7 ${styles.secondaryBg}`}>
+              {DAYS.map((day) => <div key={day.key} className={`h-10 border-b ${styles.border}`} />)}
+            </div>
+            <div className="grid grid-cols-7">
+              {Array.from({ length: 42 }, (_, cell) => (
+                <div key={cell} className={`min-h-24 border-b border-r p-1.5 sm:min-h-28 ${styles.border}`}>
+                  <div className={`h-6 w-6 rounded-full ${styles.tertiaryBg || "bg-gray-300/35"}`} />
+                  {cell % 5 === 1 && <div className={`mt-2 h-7 rounded-md ${styles.tertiaryBg || "bg-gray-300/30"}`} />}
+                  {cell % 9 === 3 && <div className={`mt-1 h-7 rounded-md ${styles.tertiaryBg || "bg-gray-300/30"}`} />}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -583,12 +622,12 @@ function ViewSkeleton({ view, styles }) {
     <div
       role="status"
       aria-label="Loading schedule"
-      className="animate-pulse grid grid-cols-1 gap-px md:grid-cols-7"
+      className="animate-pulse grid grid-cols-1 md:grid-cols-7"
     >
-      {DAYS.map((day) => (
+      {DAYS.map((day, index) => (
         <div
           key={day.key}
-          className={`min-h-[260px] space-y-3 border p-3 ${styles.border}`}
+          className={`min-h-[260px] space-y-3 border-b p-3 md:border-b-0 md:border-r ${styles.border} ${index === DAYS.length - 1 ? "md:border-r-0" : ""}`}
         >
           <div
             className={`h-5 w-20 rounded ${styles.tertiaryBg || "bg-gray-300/40"}`}

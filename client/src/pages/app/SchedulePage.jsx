@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BadgePlus, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import Styling from "../../components/theme/Styling";
 import ScheduleModal, { ScheduleDeleteModal } from "../../components/utils/schedule/ScheduleModal";
@@ -37,7 +36,7 @@ export default function SchedulePage() {
   const [modal, setModal] = useState(null);
   const [view, setView] = useState("Week");
   const [expandedMonthDay, setExpandedMonthDay] = useState(null);
-  const [month] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [now, setNow] = useState(() => new Date());
   const requestSequence = useRef(0);
 
@@ -160,7 +159,7 @@ export default function SchedulePage() {
   );
 
   return (
-    <div className="space-y-5 sm:space-y-6">
+    <div className="space-y-4">
       <header>
         <div className="mt-2 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
           <div>
@@ -188,6 +187,7 @@ export default function SchedulePage() {
         onViewChange={setView}
         onAdd={() => setModal({ mode: "form", initial: { ...EMPTY_CLASS } })}
         month={month}
+        setMonth={setMonth}
         now={now}
         expandedMonthDay={expandedMonthDay}
         setExpandedMonthDay={setExpandedMonthDay}
@@ -208,7 +208,6 @@ export default function SchedulePage() {
           busy={busy}
           onClose={() => setModal(null)}
           onSave={saveClass}
-          onDelete={requestDelete}
         />
       )}
       {deleteTarget && (

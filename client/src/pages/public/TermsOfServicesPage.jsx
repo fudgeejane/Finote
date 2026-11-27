@@ -1,4 +1,3 @@
-import { FileText } from "lucide-react";
 import Styling from "../../components/theme/Styling";
 import { terms } from "../../data/legalContent";
 
@@ -11,7 +10,7 @@ export default function TermsOfServicesPage() {
             <p className={`text-sm sm:text-base mb-6 border-b pb-6 ${styles.border} ${styles.secondaryText}`}>Guidelines for using Finote responsibly, protecting your account, and understanding service availability.</p>
             
 <ol className="list-decimal list-inside">
-    {terms.map(({ title, paragraphs }, index) => (
+    {terms.map(({ title, paragraphs }) => (
         <li key={title} className="mb-4">
             <span className="font-semibold">{title}</span>
 

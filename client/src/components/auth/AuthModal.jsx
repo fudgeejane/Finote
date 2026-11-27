@@ -50,13 +50,14 @@ export default function AuthModal({ mode, onClose, onSwitch }) {
     }
   }, [stage]);
 
+  const isCoolingDown = cooldownSeconds > 0;
   useEffect(() => {
-    if (cooldownSeconds <= 0) return undefined;
+    if (!isCoolingDown) return undefined;
     const timer = window.setInterval(() => {
       setCooldownSeconds((remaining) => Math.max(0, remaining - 1));
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [cooldownSeconds > 0]);
+  }, [isCoolingDown]);
 
   const formatWait = (seconds) => {
     if (seconds >= 60) {

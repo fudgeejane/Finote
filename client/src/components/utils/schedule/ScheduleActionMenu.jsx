@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { MoreVertical } from "lucide-react";
 import { createPortal } from "react-dom";
 
 export default function ScheduleActionMenu({ item, actionScope, open, disabled, styles, onToggle, onEdit, onDelete, onClose }) {
@@ -11,7 +11,6 @@ export default function ScheduleActionMenu({ item, actionScope, open, disabled, 
 
   useEffect(() => {
     if (!open) {
-      setMenuPosition(null);
       return undefined;
     }
     const updatePosition = () => {

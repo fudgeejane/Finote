@@ -15,57 +15,72 @@ const NOTEBOOK_GRID_CLASSES = "grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-col
 
 function NotebookCard({ notebook, styles, menuOpen, onToggleMenu, onEdit, onDelete }) {
     return (
-        <article className={`group relative rounded-xl border   transition ${menuOpen ? "z-20" : "z-0"} ${styles.border}`}>
+        <article
+            className={`group relative rounded-lg transition border ${styles.border} ${menuOpen ? "z-20" : "z-0"}`}
+        >
             <Link
                 to={`/notes?notebookId=${encodeURIComponent(notebook.id)}`}
-                className={`relative flex h-28 flex-col justify-between overflow-hidden rounded-t-xl p-4  ${styles.blueBg2hover} ${styles.secondaryBg}`}
+                className={`block overflow-hidden rounded-lg transition ${styles.secondaryBg} ${styles.secondaryBgHover}`}
             >
-                <span className={`text-[10px] font-bold uppercase tracking-[0.14em] ${styles.blueText}`}>
-                    Notebook
-                </span>
-                <span className={`truncate font-serif text-xl font-semibold ${styles.primaryText}`}>
-                    {notebook.title}
-                </span>
-            </Link>
+                {/* Header */}
+                <div className="flex h-28 flex-col justify-between p-4">
+                    <span className={`text-[10px] font-bold uppercase tracking-[0.14em] ${styles.blueText}`}>
+                        Notebook
+                    </span>
 
-            <div className={`flex items-center gap-2 px-4 py-2 rounded-b-xl border-t ${styles.border} ${styles.secondaryBg}`}>
-                <div className="flex min-w-0 flex-1 items-center justify-between gap-1">
+                    <span className={`truncate font-serif text-xl font-semibold ${styles.primaryText}`}>
+                        {notebook.title}
+                    </span>
+                </div>
+
+                {/* Footer - kasama sa hover */}
+                <div className="flex items-center justify-between gap-2 px-4 py-4">
                     <p className={`truncate text-xs ${styles.secondaryText}`}>
                         {notebook.noteCount} {notebook.noteCount === 1 ? "note" : "notes"}
                     </p>
-                  
                 </div>
-                <div className="relative">
-                    <button
-                        type="button"
-                        aria-label={`Actions for ${notebook.title}`}
-                        aria-expanded={menuOpen}
-                        className={`rounded-full p-1.5 transition ${styles.headerNavText} ${styles.secondaryBgHover}`}
-                        onClick={onToggleMenu}
+            </Link>
+
+            {/* Ellipsis */}
+            <div className="absolute bottom-1.5 right-4 z-30">
+                <button
+                    type="button"
+                    aria-label={`Actions for ${notebook.title}`}
+                    aria-expanded={menuOpen}
+                    className={`rounded-full p-1.5 transition ${styles.headerNavText} ${styles.secondaryBgHover}`}
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onToggleMenu();
+                    }}
+                >
+                    <Ellipsis className="h-4 w-4" />
+                </button>
+
+                {menuOpen && (
+                    <div
+                        role="menu"
+                        className={`absolute right-0 top-full z-30 mt-1 w-36 overflow-hidden rounded-lg border ${styles.border} ${styles.secondaryBg} ${styles.shadow}`}
                     >
-                        <Ellipsis className="h-4 w-4" />
-                    </button>
-                    {menuOpen && (
-                        <div role="menu" className={`absolute right-0 top-full z-30 mt-1 w-36 overflow-hidden rounded-lg border ${styles.border} ${styles.secondaryBg} ${styles.shadow}`}>
-                            <button
-                                type="button"
-                                role="menuitem"
-                                onClick={onEdit}
-                                className={`w-full px-4 py-2 text-left text-sm cursor-pointer ${styles.secondaryBgHover}`}
-                            >
-                                Edit
-                            </button>
-                            <button
-                                type="button"
-                                role="menuitem"
-                                onClick={onDelete}
-                                className={`w-full px-4 py-2 text-left text-sm cursor-pointer ${styles.secondaryBgHover}`}
-                            >
-                                Delete
-                            </button>
-                        </div>
-                    )}
-                </div>
+                        <button
+                            type="button"
+                            role="menuitem"
+                            onClick={onEdit}
+                            className={`w-full px-4 py-2 text-left text-sm cursor-pointer ${styles.secondaryBgHover}`}
+                        >
+                            Edit
+                        </button>
+
+                        <button
+                            type="button"
+                            role="menuitem"
+                            onClick={onDelete}
+                            className={`w-full px-4 py-2 text-left text-sm cursor-pointer ${styles.secondaryBgHover}`}
+                        >
+                            Delete
+                        </button>
+                    </div>
+                )}
             </div>
         </article>
     );
@@ -81,7 +96,7 @@ function NotebookGridSkeleton({ styles }) {
                 {placeholders.map((index) => (
                     <article
                         key={index}
-                        className={`overflow-hidden rounded-xl border ${styles.border} ${styles.secondaryBg}`}
+                        className={`overflow-hidden rounded-lg border ${styles.border} ${styles.secondaryBg}`}
                     >
                         <div className={`flex h-28 flex-col justify-between p-4 ${styles.secondaryBg}`}>
                             <span className={`${shimmer} h-2.5 w-16`} />
@@ -93,7 +108,7 @@ function NotebookGridSkeleton({ styles }) {
                         </div>
                     </article>
                 ))}
-                <div className={`flex min-h-36 flex-col items-center justify-center gap-3 rounded-xl border border-dashed ${styles.border}`}>
+                <div className={`flex min-h-36 flex-col items-center justify-center gap-3 rounded-lg border border-dashed ${styles.border}`}>
                     <span className={`${shimmer} h-5 w-5 rounded-full`} />
                     <span className={`${shimmer} h-3 w-24`} />
                 </div>
@@ -140,6 +155,10 @@ export default function HomePage() {
     const [error, setError] = useState("");
     const [loadError, setLoadError] = useState("");
     const [reloadToken, setReloadToken] = useState(0);
+    const [activity, setActivity] = useState(null);
+    const [activityLoading, setActivityLoading] = useState(true);
+    const [activityError, setActivityError] = useState("");
+    const [activityRetry, setActivityRetry] = useState(0);
     const styles = Styling();
     const { user, apiRequest } = useAuth();
 
@@ -153,6 +172,15 @@ export default function HomePage() {
         return titleOrder;
     });
     const greetingName = user?.firstName || user?.email?.split("@")[0] || "there";
+    useEffect(() => {
+        let active = true;
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+        apiRequest(`/learning-activity?timezone=${encodeURIComponent(timezone)}`)
+            .then((result) => { if (active) setActivity(result); })
+            .catch((error) => { if (active) setActivityError(error.message); })
+            .finally(() => { if (active) setActivityLoading(false); });
+        return () => { active = false; };
+    }, [apiRequest, activityRetry, user?.id]);
     useEffect(() => {
         let active = true;
         const loadNotebooks = async () => {
@@ -244,25 +272,31 @@ export default function HomePage() {
             </section>
 
             <section aria-label="Study streak" className="flex flex-wrap items-center justify-between gap-x-4  gap-y-2 mt-8">
-                {loading ? (
+                {activityLoading ? (
                     <StudyStreakSkeleton />
+                ) : activityError ? (
+                    <div className={`flex flex-wrap items-center gap-3 text-sm ${styles.secondaryText}`}>
+                        <span role="alert">Could not load study streak: {activityError}</span>
+                        <button type="button" onClick={() => { setActivityLoading(true); setActivityError(""); setActivityRetry((value) => value + 1); }} className={`rounded-lg px-3 py-1.5 underline ${styles.headerNavText}`}>Retry</button>
+                    </div>
                 ) : (
                     <Link
                         to="/progress"
-                        className="flex flex-wrap items-center gap-x-5 gap-y-3"
+                        aria-label={`Current study streak: ${activity?.streak || 0} consecutive days. View progress.`}
+                        className="flex flex-wrap items-center gap-x-5 gap-y-3 focus-visible:outline-2 focus-visible:outline-offset-4"
                     >
                         <div className="flex items-center gap-1.5">
                             <Flame className={`h-6 w-6 ${styles.streakIconText}`} fill="currentColor" aria-hidden="true" />
-                            <span className="font-serif text-3xl font-bold leading-none">7</span>
-                            <span className={`text-sm ${styles.secondaryText}`}>days</span>
+                            <span className="font-serif text-3xl font-bold leading-none">{activity?.streak || 0}</span>
+                            <span className={`text-sm ${styles.secondaryText}`}>{(activity?.streak || 0) === 1 ? "day" : "days"}</span>
                         </div>
                         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
-                            <div role="group" aria-label="Seven day study streak" className="flex items-center gap-2">
-                                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
-                                    <div key={day} className="flex flex-col items-center gap-0.5">
-                                        <Flame className="h-5 w-5 text-orange-500" fill="currentColor" aria-hidden="true" />
-                                        <span className={`text-[11px] font-medium ${styles.tertiaryText}`}>{day}</span>
-                                        <span className="sr-only">{day} completed</span>
+                            <div role="group" aria-label="Study activity Monday through Sunday this week" className="flex items-center gap-2">
+                                {(activity?.days || []).map((day) => (
+                                    <div key={day.date} className="flex flex-col items-center gap-0.5" aria-label={`${new Date(`${day.date}T12:00:00`).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}: ${day.active ? "study activity" : "no activity"}`}>
+                                        <Flame className={`h-5 w-5 ${day.active ? "text-orange-500" : styles.tertiaryText}`} fill={day.active ? "currentColor" : "none"} aria-hidden="true" />
+                                        <span className={`text-[11px] font-medium ${styles.tertiaryText}`}>{new Date(`${day.date}T12:00:00`).toLocaleDateString(undefined, { weekday: "short" })}</span>
+                                        <span className="sr-only">{day.active ? "Activity completed" : "No activity"}</span>
                                     </div>
                                 ))}
                             </div>
@@ -291,7 +325,7 @@ export default function HomePage() {
                         className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold ${styles.buttonFrost}`}
                     >
                         <BadgePlus className="h-4 w-4" />
-                        New Notebook
+                        Create Notebook
                     </button>
                 </div>
             </section>
@@ -305,7 +339,7 @@ export default function HomePage() {
                 {loading ? (
                     <NotebookGridSkeleton styles={styles} />
                 ) : loadError ? (
-                    <div role="alert" className={`rounded-xl border px-5 py-8 text-center ${styles.border}`}>
+                    <div role="alert" className={`rounded-lg border px-5 py-8 text-center ${styles.border}`}>
                         <p className={`text-sm ${styles.secondaryText}`}>Notebooks could not be loaded: {loadError}</p>
                         <button
                             type="button"
@@ -341,12 +375,12 @@ export default function HomePage() {
                             disabled={busy}
                             onClick={() => { setError(""); setModal({ mode: "create" }); }}
                             className={`flex min-h-36 flex-col items-center justify-center cursor-pointer 
-                                        gap-2.5 rounded-xl border border-dashed p-4 text-center text-sm transition  
+                                        gap-2.5 rounded-lg border border-dashed p-4 text-center text-sm transition  
                                         disabled:cursor-not-allowed disabled:opacity-50
-                                        ${styles.border} ${styles.blueBg2hover} ${styles.secondaryBg}`}
+                                        ${styles.buttonFrost} `}
                         >
                             <BadgePlus className="h-5 w-5" />
-                            <span>{visibleNotebooks.length ? "Add notebook" : "Create your first notebook"}</span>
+                            <span>{visibleNotebooks.length ? "Create Notebook" : "Create your first notebook"}</span>
                             {!visibleNotebooks.length && (
                                 <span className={`text-xs ${styles.tertiaryText}`}>
                                     Keep your notes organized by subject.

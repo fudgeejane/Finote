@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, RotateCcw, Shuffle } from "lucide-react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import Styling from "../../components/theme/Styling";
 import { useAuth } from "../../auth/AuthContext";
+import { activityRequest } from "../../utils/learningActivity";
 
 function shuffledIndices(length) {
     const indices = Array.from({ length }, (_, index) => index);
@@ -18,12 +19,15 @@ export default function FlashCardPage() {
     const { materialId } = useParams();
     const { apiRequest } = useAuth();
     const [loadState, setLoadState] = useState(null);
-    const [notebookName, setNotebookName] = useState("");
+    const [notebookName, setNotebookName] = useState({ materialId: null, name: "" });
     const [progress, setProgress] = useState({ materialId: null, cardIndex: 0, showAnswer: false, complete: false });
     const [ratings, setRatings] = useState({ materialId: null, byCard: {} });
     const [cardOrder, setCardOrder] = useState({ materialId: null, indices: [] });
     const [reviewOnly, setReviewOnly] = useState(false);
     const [flipStarted, setFlipStarted] = useState(false);
+    const [activityError, setActivityError] = useState("");
+    const completionEventRef = useRef("");
+    const usageEventRef = useRef("");
     const isCurrentMaterial = loadState?.materialId === materialId;
     const material = isCurrentMaterial ? loadState.material : null;
     const loading = !isCurrentMaterial || loadState.status === "loading";
@@ -48,9 +52,21 @@ export default function FlashCardPage() {
         ? Object.values(ratings.byCard).filter((rating) => rating === "review-again").length
         : 0;
 
+    const recordStudyUse = async () => {
+        const eventId = usageEventRef.current?.materialId === materialId
+            ? usageEventRef.current.eventId
+            : `flashcards-used:${materialId}:${crypto.randomUUID()}`;
+        usageEventRef.current = { materialId, eventId };
+        try {
+            await apiRequest("/learning-activity", activityRequest("flashcards-used", materialId, eventId));
+            setActivityError("");
+        } catch (error) {
+            setActivityError(error.message);
+        }
+    };
+
     useEffect(() => {
         let active = true;
-        setNotebookName("");
         apiRequest(`/study-materials/${encodeURIComponent(materialId)}`)
             .then(async ({ material: savedMaterial }) => {
                 if (!active) return;
@@ -65,7 +81,7 @@ export default function FlashCardPage() {
                 }
                 setLoadState({ materialId, status: "success", material: savedMaterial, error: "" });
                 apiRequest(`/notebooks/${encodeURIComponent(savedMaterial.sourceNotebookId)}`)
-                    .then(({ notebook }) => { if (active) setNotebookName(notebook?.name || ""); })
+                    .then(({ notebook }) => { if (active) setNotebookName({ materialId, name: notebook?.name || "" }); })
                     .catch(() => {});
                 const saved = await apiRequest(`/study-materials/${encodeURIComponent(materialId)}/progress`);
                 setCardOrder({ materialId, indices: saved.state?.indices?.length === savedMaterial.cards.length ? saved.state.indices : savedMaterial.cards.map((_, index) => index) });
@@ -106,13 +122,14 @@ export default function FlashCardPage() {
                 }));
             } else if ((event.key === " " || event.key === "Enter") && !onFlipControl) {
                 event.preventDefault();
+                recordStudyUse();
                 setFlipStarted(true);
                 setProgress((current) => ({ ...current, materialId, showAnswer: !current.showAnswer, complete: false }));
             }
         };
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
-    }, [complete, material, materialId]);
+    }, [apiRequest, cardIndices.length, complete, material, materialId]);
 
     const moveTo = (nextIndex) => setProgress({
         materialId,
@@ -120,6 +137,17 @@ export default function FlashCardPage() {
         showAnswer: false,
         complete: false,
     });
+
+    const completeRound = async () => {
+        const eventId = completionEventRef.current || `flashcards:${materialId}:${crypto.randomUUID()}`;
+        completionEventRef.current = eventId;
+        setProgress({ materialId, cardIndex, showAnswer: false, complete: true });
+        try {
+            await apiRequest(`/study-materials/${encodeURIComponent(materialId)}/progress`, { method: "PUT", body: JSON.stringify({ state: { materialId, cardIndex, showAnswer: false, complete: true, ratings: ratings.byCard, indices: cardOrder.indices, reviewOnly } }) });
+            await apiRequest("/learning-activity", activityRequest("flashcards-completed", materialId, eventId));
+            setActivityError("");
+        } catch (error) { setActivityError(error.message); }
+    };
 
     const rateCard = (rating) => {
         setRatings((current) => ({
@@ -132,6 +160,7 @@ export default function FlashCardPage() {
     };
 
     const restart = () => {
+        completionEventRef.current = "";
         setReviewOnly(false);
         moveTo(0);
         setRatings({ materialId, byCard: {} });
@@ -139,12 +168,14 @@ export default function FlashCardPage() {
 
     const shuffle = () => {
         if (!material) return;
+        completionEventRef.current = "";
         setCardOrder({ materialId, indices: shuffledIndices(material.cards.length) });
         moveTo(0);
     };
 
     const reviewMissed = () => {
         if (!allIndices.some((index) => ratings.byCard[index] === "review-again")) return;
+        completionEventRef.current = "";
         setReviewOnly(true);
         setProgress({ materialId, cardIndex: 0, showAnswer: false, complete: false });
     };
@@ -172,7 +203,7 @@ export default function FlashCardPage() {
                         <div className="min-w-0">
                         <h1 className="break-words font-serif text-2xl font-semibold sm:text-3xl">{material.title}</h1>
                         
-                        {notebookName && <p className={`mt-1 text-sm ${styles.studyMutedText}`}>Notebook: {notebookName}</p>}
+                        {notebookName.materialId === materialId && notebookName.name && <p className={`mt-1 text-sm ${styles.studyMutedText}`}>Notebook: {notebookName.name}</p>}
                         </div>
                     </header>
 
@@ -204,8 +235,9 @@ export default function FlashCardPage() {
                                     </span>
                                     <h2 className="mt-4 font-serif text-2xl font-semibold">Deck complete</h2>
                                     <p className={`mt-2 text-sm ${styles.secondaryText}`}>
-                                        {gotItCount} got it · {ratedCount - gotItCount} to review · {reviewOnly ? "Focused review complete." : "Round complete."}
+                                        {gotItCount} got it · {reviewCount} to review · {reviewOnly ? "Focused review complete." : "Round complete."}
                                     </p>
+                                    {activityError && <div role="alert" className={`mx-auto mt-4 max-w-lg rounded-lg border p-3 text-sm ${styles.studyDanger}`}><p>Round complete, but study activity could not be recorded.</p><button type="button" onClick={completeRound} className="mt-2 underline">Retry activity</button></div>}
                                     {!reviewOnly && ratedCount > gotItCount && <button type="button" onClick={reviewMissed} className={`mt-4 mr-2 min-h-11 rounded-lg px-4 text-sm font-medium ${styles.studyGhostButton} ${styles.studyFocusRing}`}>Review missed cards</button>}
                                     <button
                                         type="button"
@@ -220,6 +252,7 @@ export default function FlashCardPage() {
                                     <button
                                         type="button"
                                         onClick={() => {
+                                            recordStudyUse();
                                             setFlipStarted(true);
                                             setProgress({ materialId, cardIndex, showAnswer: !showAnswer, complete: false });
                                         }}
@@ -241,6 +274,26 @@ export default function FlashCardPage() {
                                             </span>
                                         </span>
                                     </button>
+                                    {showAnswer && (
+                                        <div className="mt-3 flex flex-wrap justify-center gap-2" role="group" aria-label="Rate this flashcard">
+                                            <button
+                                                type="button"
+                                                aria-pressed={cardRating === "got-it"}
+                                                onClick={() => rateCard("got-it")}
+                                                className={`min-h-10 rounded-lg border px-4 text-sm font-medium ${styles.studyFocusRing} ${cardRating === "got-it" ? styles.studySuccess : styles.studyGhostButton}`}
+                                            >
+                                                Got it
+                                            </button>
+                                            <button
+                                                type="button"
+                                                aria-pressed={cardRating === "review-again"}
+                                                onClick={() => rateCard("review-again")}
+                                                className={`min-h-10 rounded-lg border px-4 text-sm font-medium ${styles.studyFocusRing} ${cardRating === "review-again" ? styles.studyDanger : styles.studyGhostButton}`}
+                                            >
+                                                Review again
+                                            </button>
+                                        </div>
+                                    )}
                                     <div className="mt-4 grid gap-2 sm:gap-4 grid-cols-4">
 
                                         <button
@@ -276,13 +329,12 @@ export default function FlashCardPage() {
 
                                         <button
                                             type="button"
-                                            disabled={cardIndex === cardIndices.length - 1}
-                                            aria-label="Next card"
-                                            title="Next card"
-                                            onClick={() => moveTo(cardIndex + 1)}
+                                            aria-label={cardIndex === cardIndices.length - 1 ? "Complete study round" : "Next card"}
+                                            title={cardIndex === cardIndices.length - 1 ? "Complete study round" : "Next card"}
+                                            onClick={() => cardIndex === cardIndices.length - 1 ? completeRound() : moveTo(cardIndex + 1)}
                                             className={`flex p-2.5 items-center justify-center rounded-xl ${styles.blueBg2} ${styles.blueBg2hover} ${styles.studyFocusRing} disabled:cursor-not-allowed disabled:opacity-40`}
                                         >
-                                            <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                                            {cardIndex === cardIndices.length - 1 ? <Check className="h-5 w-5" aria-hidden="true" /> : <ChevronRight className="h-5 w-5" aria-hidden="true" />}
                                         </button>
 
                                     </div>

@@ -16,8 +16,10 @@ import {
     Table2,
     Trash2,
     Underline,
+    Download,
 } from "lucide-react";
 import Styling from "../../components/theme/Styling";
+import { activityRequest } from "../../utils/learningActivity";
 import { useDarkMode } from "../../components/theme/DarkModeContext";
 import { useAuth } from "../../auth/AuthContext";
 import NoteTableControls from "../../components/utils/notes/NoteTableControls";
@@ -491,6 +493,8 @@ export default function NotesPage() {
     const [savingNoteCount, setSavingNoteCount] = useState(0);
     const [savingBeforeNavigation, setSavingBeforeNavigation] = useState(false);
     const [navigationSaveError, setNavigationSaveError] = useState("");
+    const [exportStatus, setExportStatus] = useState("");
+    const [activityRetryNote, setActivityRetryNote] = useState(null);
     const blocker = useBlocker(({ currentLocation, nextLocation }) =>
         hasUnsavedChangesRef.current &&
         (
@@ -862,10 +866,67 @@ export default function NotesPage() {
             replaceNotes((current) => [note, ...current]);
             setActiveId(note.id);
             setQuery("");
+            setActivityRetryNote(note);
+            await apiRequest("/learning-activity", activityRequest("note-created", note.id, `note:${note.id}`));
+            setActivityRetryNote(null);
             window.requestAnimationFrame(() => editorRef.current?.focus());
         } catch (error) {
             setSaveError(error.message);
         }
+    };
+
+    const exportNote = async (format) => {
+        if (!activeNote) return;
+        const printWindow = format === "pdf" ? window.open("", "_blank") : null;
+        if (format === "pdf" && !printWindow) { setExportStatus("Allow pop-ups to print this note or save it as PDF."); return; }
+        setExportStatus("Preparing export…");
+        try {
+            if (unsavedNoteIdsRef.current.has(activeNote.id) || saveTimersRef.current.has(activeNote.id)) {
+                const saved = await flushNoteSave(activeNote);
+                if (!saved || unsavedNoteIdsRef.current.has(activeNote.id)) throw new Error("Save this note successfully before exporting.");
+            }
+            const note = persistedNotesRef.current.get(activeNote.id);
+            if (!note) throw new Error("Saved note content is not available yet.");
+            const doc = new DOMParser().parseFromString(note.content || "", "text/html");
+            doc.querySelectorAll("script,style,iframe,object,embed,form,button,svg,math,link,meta,.note-table-actions,.note-table-row-handle,.note-table-column-handle,.note-table-resizer").forEach((node) => node.remove());
+            doc.querySelectorAll("*").forEach((node) => {
+                [...node.attributes].forEach((attribute) => {
+                    if (attribute.name.toLowerCase().startsWith("on") || ["contenteditable", "class", "id", "style"].includes(attribute.name.toLowerCase())) node.removeAttribute(attribute.name);
+                    else if (["href", "src"].includes(attribute.name.toLowerCase()) && !/^(https?:|mailto:|tel:|\/|#)/i.test(attribute.value.trim())) node.removeAttribute(attribute.name);
+                });
+            });
+            const safeTitle = (note.title || "Untitled note").replace(/[\\/:*?"<>|]/g, "-").trim() || "Untitled note";
+            if (format === "pdf") {
+                printWindow.document.write(`<!doctype html><html><head><title>${safeTitle.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</title><style>body{font:11pt Arial,sans-serif;max-width:760px;margin:40px auto;line-height:1.6;color:#111}h1,h2,h3{font-family:Georgia,serif}table{border-collapse:collapse;width:100%}td,th{border:1px solid #888;padding:6px}img{max-width:100%} @media print{body{margin:18mm;max-width:none}}</style></head><body><h1>${safeTitle.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</h1>${doc.body.innerHTML}</body></html>`);
+                printWindow.document.close();
+                printWindow.focus();
+                printWindow.print();
+                setExportStatus("In the print dialog, choose Save as PDF to download a PDF.");
+            } else {
+                const { Document, HeadingLevel, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType } = await import("docx");
+                const inline = (node, inherited = {}) => [...node.childNodes].flatMap((child) => {
+                    if (child.nodeType === Node.TEXT_NODE) return [new TextRun({ text: child.textContent || "", ...inherited })];
+                    if (child.nodeType !== Node.ELEMENT_NODE) return [];
+                    const tag = child.tagName.toLowerCase();
+                    return inline(child, { ...inherited, bold: inherited.bold || ["b", "strong"].includes(tag), italics: inherited.italics || ["i", "em"].includes(tag), underline: inherited.underline || tag === "u" });
+                });
+                const blocks = [];
+                [...doc.body.children].forEach((node) => {
+                    const tag = node.tagName.toLowerCase();
+                    const tableNode = tag === "table" ? node : node.querySelector("table");
+                    if (tableNode) {
+                        const rows = [...tableNode.rows].map((row) => new TableRow({ children: [...row.cells].map((cell) => new TableCell({ children: [new Paragraph({ children: inline(cell) })] })) }));
+                        if (rows.length) blocks.push(new Table({ rows, width: { size: 100, type: WidthType.PERCENTAGE } }));
+                    } else if (["ul", "ol"].includes(tag)) [...node.children].forEach((li, index) => blocks.push(new Paragraph({ children: [new TextRun(`${tag === "ul" ? "•" : `${index + 1}.`} `), ...inline(li)] })));
+                    else blocks.push(new Paragraph({ heading: ({ h1: HeadingLevel.HEADING_1, h2: HeadingLevel.HEADING_2, h3: HeadingLevel.HEADING_3 })[tag], children: inline(node) }));
+                });
+                const blob = await Packer.toBlob(new Document({ sections: [{ children: [new Paragraph({ text: note.title || "Untitled note", heading: HeadingLevel.TITLE }), ...blocks] }] }));
+                const url = URL.createObjectURL(blob);
+                const anchor = document.createElement("a"); anchor.href = url; anchor.download = `${safeTitle}.docx`; anchor.click();
+                window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+                setExportStatus("Word document downloaded.");
+            }
+        } catch (error) { printWindow?.close(); setExportStatus(error.message); }
     };
 
     const deleteNote = async () => {
@@ -1619,6 +1680,12 @@ export default function NotesPage() {
                             {activeNote && <button type="button" onClick={() => flushNoteSave(activeNote)} className="shrink-0 font-semibold underline">Retry save</button>}
                         </div>
                     )}
+                    {activityRetryNote && (
+                        <div role="alert" className="flex flex-wrap items-center justify-between gap-2 border-b border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-600">
+                            <span>Note saved, but study activity could not be recorded.</span>
+                            <button type="button" onClick={async () => { try { await apiRequest("/learning-activity", activityRequest("note-created", activityRetryNote.id, `note:${activityRetryNote.id}`)); setActivityRetryNote(null); } catch (error) { setSaveError(error.message); } }} className="font-semibold underline">Retry activity</button>
+                        </div>
+                    )}
                     {loading ? (
                         <div className="flex flex-1 items-center justify-center text-sm text-gray-500">Loading notes…</div>
                     ) : activeNote ? (
@@ -1742,11 +1809,14 @@ export default function NotesPage() {
                                     </button>
 
                                    
+                                    <button type="button" onClick={() => exportNote("docx")} disabled={!activeNote || savingNoteCount > 0} aria-label="Download saved note as Word document" className={`inline-flex min-h-9 items-center gap-1 rounded-lg border px-2 text-xs font-medium ${styles.border} ${styles.secondaryBgHover} disabled:opacity-50`}><Download className="h-3.5 w-3.5" aria-hidden="true" />Word</button>
+                                    <button type="button" onClick={() => exportNote("pdf")} disabled={!activeNote || savingNoteCount > 0} aria-label="Print note or save as PDF" className={`inline-flex min-h-9 items-center gap-1 rounded-lg border px-2 text-xs font-medium ${styles.border} ${styles.secondaryBgHover} disabled:opacity-50`}><Download className="h-3.5 w-3.5" aria-hidden="true" />Print / Save PDF</button>
                                     <span className={`mx-1 h-5 w-px shrink-0 ${styles.grayBg}`} />
                                     <button type="button" onClick={() => setDeleteId(activeNote.id)} aria-label={`Delete ${activeNote.title}`} title="Delete note" className="shrink-0 rounded p-2 text-gray-400 hover:bg-red-500/10 hover:text-red-500">
                                         <Trash2 className="h-4 w-4" />
                                     </button>
                                     </div>
+                                    {exportStatus && <p role="status" className={`basis-full px-2 text-xs ${styles.secondaryText}`}>{exportStatus}</p>}
                                 </div>
                             </header>
 

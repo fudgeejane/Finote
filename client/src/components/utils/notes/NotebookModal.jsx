@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Trash2, X } from "lucide-react";
 import Styling from "../../theme/Styling";
 
 export default function NotebookModal({ mode, notebook, onClose, onSubmit, onDelete, busy = false, error = "" }) {
@@ -30,7 +29,7 @@ export default function NotebookModal({ mode, notebook, onClose, onSubmit, onDel
                         if (!isDelete) onSubmit(title.trim());
                     }}
                 >
-                    <header className="flex items-start justify-between gap-4 p-6">
+                    <header className="flex items-start gap-4 p-6">
                         <div>
                             <h2 id="notebook-modal-title" className={`text-xl font-semibold ${styles.primaryText}`}>
                                 {heading}
@@ -41,15 +40,7 @@ export default function NotebookModal({ mode, notebook, onClose, onSubmit, onDel
                                 </p>
                             )}
                         </div>
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            disabled={busy}
-                            aria-label="Close dialog"
-                            className={`rounded-full p-1 ${styles.closeButton}`}
-                        >
-                            <X className="h-5 w-5" />
-                        </button>
+                       
                     </header>
 
                     <div className="px-6 pb-2">
@@ -88,7 +79,7 @@ export default function NotebookModal({ mode, notebook, onClose, onSubmit, onDel
                                 Delete
                             </button>
                         ) : (
-                            <button type="submit" disabled={!title.trim() || busy} className={`rounded-lg px-4 py-2 text-sm ${styles.blueBg2} ${styles.blueBg2hover}`}>
+                            <button type="submit" disabled={!title.trim() || busy} className={`rounded-lg px-4 py-2 text-sm ${styles.buttonPrimary} ${styles.blueBg2hover}`}>
                                 {isEdit ? "Save changes" : "Create notebook"}
                             </button>
                         )}

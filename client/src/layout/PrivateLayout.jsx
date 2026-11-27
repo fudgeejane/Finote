@@ -168,7 +168,7 @@ export default function PrivateLayout() {
           <div className="flex min-w-0 items-center gap-2 sm:gap-4">
             <Link to="/home" className="flex shrink-0 items-center gap-2">
               <img src={Logo} alt="" className="h-8 w-8 object-contain" />
-              <span className={`hidden font-serif text-lg font-semibold italic sm:inline ${styles.sidebarText}`}>
+                        <span className="hidden sm:inline text-lg md:text-2xl font-sans font-medium text-blue-500 font-serif italic">
                 Finote
               </span>
             </Link>
