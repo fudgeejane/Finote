@@ -10,7 +10,7 @@ const preferenceFields = {
 async function list(req, res) {
   try {
     const [notifications, unreadCount] = await Promise.all([
-      Notification.find({ user: req.user._id, inAppEnabled: { $ne: false } }).sort({ occurredAt: -1 }).limit(50).select("type title message href occurredAt readAt").lean(),
+      Notification.find({ user: req.user._id, inAppEnabled: { $ne: false } }).sort({ occurredAt: -1 }).limit(50).select("type title message href occurredAt createdAt readAt").lean(),
       Notification.countDocuments({ user: req.user._id, inAppEnabled: { $ne: false }, readAt: null }),
     ]);
     return res.json({ notifications, unreadCount });

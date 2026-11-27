@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useBlocker, useNavigate, useSearchParams } from "react-router-dom";
 import {
     BookOpen,
@@ -17,6 +17,7 @@ import {
     Trash2,
     Underline,
     Download,
+    Save as SaveIcon,
 } from "lucide-react";
 import Styling from "../../components/theme/Styling";
 import { useDarkMode } from "../../components/theme/DarkModeContext";
@@ -467,16 +468,17 @@ export default function NotesPage() {
     const activeTableRef = useRef(null);
     const editorSelectionRef = useRef(null);
     const editorHistoryRef = useRef({});
-    const saveTimersRef = useRef(new Map());
     const noteVersionsRef = useRef(new Map());
     const persistedNotesRef = useRef(new Map());
     const unsavedNoteIdsRef = useRef(new Set());
     const hasUnsavedChangesRef = useRef(false);
     const pendingSaveCountRef = useRef(0);
+    const pendingNoteSaveCountsRef = useRef(new Map());
     const saveQueueRef = useRef(Promise.resolve());
     const createNoteOperationRef = useRef("");
     const latestNotesRef = useRef([]);
     const navigationDialogRef = useRef(null);
+    const savingBeforeNavigationRef = useRef(false);
     const [notes, setNotes] = useState([]);
     const [activeId, setActiveId] = useState(null);
     const [query, setQuery] = useState("");
@@ -489,11 +491,15 @@ export default function NotesPage() {
     const [loadedNotebookKey, setLoadedNotebookKey] = useState(undefined);
     const loading = loadedNotebookKey !== notebookId;
     const [saveError, setSaveError] = useState("");
+    const latestSaveErrorRef = useRef("");
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [savingNoteCount, setSavingNoteCount] = useState(0);
     const [savingBeforeNavigation, setSavingBeforeNavigation] = useState(false);
     const [navigationSaveError, setNavigationSaveError] = useState("");
     const [exportStatus, setExportStatus] = useState("");
+    const [exportMenuOpen, setExportMenuOpen] = useState(false);
+    const exportMenuRef = useRef(null);
+    const exportButtonRef = useRef(null);
     const blocker = useBlocker(({ currentLocation, nextLocation }) =>
         hasUnsavedChangesRef.current &&
         (
@@ -504,11 +510,9 @@ export default function NotesPage() {
     );
 
     const replaceNotes = useCallback((updater) => {
-        setNotes((current) => {
-            const next = typeof updater === "function" ? updater(current) : updater;
-            latestNotesRef.current = next;
-            return next;
-        });
+        const next = typeof updater === "function" ? updater(latestNotesRef.current) : updater;
+        latestNotesRef.current = next;
+        setNotes(next);
     }, []);
 
     const updateUnsavedState = useCallback((noteId, unsaved) => {
@@ -591,15 +595,6 @@ export default function NotesPage() {
     }, []);
 
     useEffect(() => {
-        if (blocker.state !== "blocked") return;
-        unsavedNoteIdsRef.current.forEach((noteId) => {
-            const timer = saveTimersRef.current.get(noteId);
-            if (timer) window.clearTimeout(timer);
-            saveTimersRef.current.delete(noteId);
-        });
-    }, [blocker.state]);
-
-    useEffect(() => {
         if (blocker.state === "blocked" && !hasUnsavedChanges && !savingBeforeNavigation) {
             blocker.proceed();
         }
@@ -637,10 +632,31 @@ export default function NotesPage() {
         };
     }, [textColorOpen]);
 
+    useEffect(() => {
+        if (!exportMenuOpen) return undefined;
+        window.requestAnimationFrame(() => exportMenuRef.current?.querySelector('[role="menuitem"]')?.focus());
+        const closeOnOutsideClick = (event) => {
+            if (!exportMenuRef.current?.contains(event.target)) setExportMenuOpen(false);
+        };
+        const closeOnEscape = (event) => {
+            if (event.key === "Escape") {
+                setExportMenuOpen(false);
+                exportButtonRef.current?.focus();
+            }
+        };
+        document.addEventListener("pointerdown", closeOnOutsideClick);
+        document.addEventListener("keydown", closeOnEscape);
+        return () => {
+            document.removeEventListener("pointerdown", closeOnOutsideClick);
+            document.removeEventListener("keydown", closeOnEscape);
+        };
+    }, [exportMenuOpen]);
+
     const visibleNotes = notes.filter((note) =>
         `${note.title} ${textFromHtml(note.content)}`.toLowerCase().includes(query.toLowerCase())
     );
     const activeNote = notes.find((note) => note.id === activeId) ?? null;
+    const activeNoteHasUnsavedChanges = Boolean(activeNote && unsavedNoteIdsRef.current.has(activeNote.id));
 
     const persistNote = useCallback((note) => {
         if (!note?.id || !notebookId) return Promise.resolve(false);
@@ -652,6 +668,9 @@ export default function NotesPage() {
                     method: "PATCH",
                     body: JSON.stringify({ title: note.title, content: note.content }),
                 });
+                if (response?.note?.id !== note.id || response.note.content !== note.content) {
+                    throw new Error("The server did not confirm that the latest note content was saved.");
+                }
                 const savedNote = { ...note, ...response.note };
                 persistedNotesRef.current.set(note.id, savedNote);
                 if (noteVersionsRef.current.get(note.id) === version) {
@@ -659,57 +678,56 @@ export default function NotesPage() {
                         item.id === note.id ? savedNote : item
                     ));
                     updateUnsavedState(note.id, false);
+                    latestSaveErrorRef.current = "";
                     setSaveError("");
                 }
                 return noteVersionsRef.current.get(note.id) === version;
             } catch (error) {
+                latestSaveErrorRef.current = error.message;
                 setSaveError(error.message);
+                if (blocker.state === "blocked") setNavigationSaveError(`Could not save your changes: ${error.message}`);
                 return false;
             }
         });
         saveQueueRef.current = saveRequest;
         pendingSaveCountRef.current += 1;
+        pendingNoteSaveCountsRef.current.set(note.id, (pendingNoteSaveCountsRef.current.get(note.id) || 0) + 1);
         setSavingNoteCount(pendingSaveCountRef.current);
         return saveRequest.finally(() => {
             pendingSaveCountRef.current -= 1;
+            const pendingForNote = pendingNoteSaveCountsRef.current.get(note.id) || 0;
+            if (pendingForNote <= 1) pendingNoteSaveCountsRef.current.delete(note.id);
+            else pendingNoteSaveCountsRef.current.set(note.id, pendingForNote - 1);
             setSavingNoteCount(pendingSaveCountRef.current);
         });
     }, [apiRequest, notebookId, replaceNotes, updateUnsavedState]);
 
-    const queueNoteSave = useCallback((note, version) => {
-        const existingTimer = saveTimersRef.current.get(note.id);
-        if (existingTimer) window.clearTimeout(existingTimer);
-        const timer = window.setTimeout(() => {
-            saveTimersRef.current.delete(note.id);
-            if (noteVersionsRef.current.get(note.id) === version) persistNote(note);
-        }, 600);
-        saveTimersRef.current.set(note.id, timer);
-    }, [persistNote]);
-
-    const flushNoteSave = useCallback((note) => {
-        if (!note?.id) return;
-        const timer = saveTimersRef.current.get(note.id);
-        if (timer) window.clearTimeout(timer);
-        saveTimersRef.current.delete(note.id);
+    const saveActiveNote = async () => {
+        if (!activeNote || pendingNoteSaveCountsRef.current.has(activeNote.id)) return false;
+        let note = latestNotesRef.current.find((item) => item.id === activeNote.id);
+        if (!note) return false;
+        if (editorRef.current) {
+            const editorContent = cleanEditorHtml(editorRef.current.innerHTML);
+            if (editorContent !== note.content) {
+                updateActiveNote({ content: editorContent });
+                note = latestNotesRef.current.find((item) => item.id === activeNote.id) || { ...note, content: editorContent };
+            }
+        }
+        if (!unsavedNoteIdsRef.current.has(note.id)) return true;
+        latestSaveErrorRef.current = "";
+        setSaveError("");
         return persistNote(note);
-    }, [persistNote]);
+    };
 
     const stayOnPage = () => {
         blocker.reset();
         setNavigationSaveError("");
-        unsavedNoteIdsRef.current.forEach((noteId) => {
-            const note = latestNotesRef.current.find((item) => item.id === noteId);
-            if (note) queueNoteSave(note, noteVersionsRef.current.get(noteId) ?? 0);
-        });
     };
 
     const discardAndProceed = () => {
         if (pendingSaveCountRef.current > 0) return;
         const dirtyIds = new Set(unsavedNoteIdsRef.current);
         dirtyIds.forEach((noteId) => {
-            const timer = saveTimersRef.current.get(noteId);
-            if (timer) window.clearTimeout(timer);
-            saveTimersRef.current.delete(noteId);
             noteVersionsRef.current.set(noteId, (noteVersionsRef.current.get(noteId) ?? 0) + 1);
         });
         const revertedNotes = latestNotesRef.current.map((note) => {
@@ -726,6 +744,7 @@ export default function NotesPage() {
         unsavedNoteIdsRef.current.clear();
         hasUnsavedChangesRef.current = false;
         setHasUnsavedChanges(false);
+        latestSaveErrorRef.current = "";
         setSaveError("");
         setNavigationSaveError("");
         replaceNotes(revertedNotes);
@@ -733,18 +752,34 @@ export default function NotesPage() {
     };
 
     const saveAndProceed = async () => {
+        if (savingBeforeNavigationRef.current) return;
+        savingBeforeNavigationRef.current = true;
         setSavingBeforeNavigation(true);
         setNavigationSaveError("");
+        latestSaveErrorRef.current = "";
         try {
-            const dirtyIds = Array.from(unsavedNoteIdsRef.current);
-            for (const noteId of dirtyIds) {
-                const timer = saveTimersRef.current.get(noteId);
-                if (timer) window.clearTimeout(timer);
-                saveTimersRef.current.delete(noteId);
-                const note = latestNotesRef.current.find((item) => item.id === noteId);
-                if (!note || !(await persistNote(note))) {
-                    setNavigationSaveError("Your changes could not be saved. Please try again or leave without saving.");
-                    return;
+            await saveQueueRef.current.catch(() => false);
+            while (unsavedNoteIdsRef.current.size > 0) {
+                const dirtyIds = Array.from(unsavedNoteIdsRef.current);
+                for (const noteId of dirtyIds) {
+                    let note = latestNotesRef.current.find((item) => item.id === noteId);
+                    if (note && noteId === activeId && editorRef.current) {
+                        const editorContent = cleanEditorHtml(editorRef.current.innerHTML);
+                        if (editorContent !== note.content) {
+                            updateActiveNote({ content: editorContent });
+                            note = latestNotesRef.current.find((item) => item.id === noteId) || { ...note, content: editorContent };
+                        }
+                    }
+                    if (!note) {
+                        setNavigationSaveError("Your changes could not be saved. Please try again or leave without saving.");
+                        return;
+                    }
+                    const version = noteVersionsRef.current.get(noteId) ?? 0;
+                    if (!(await persistNote(note))) {
+                        if ((noteVersionsRef.current.get(noteId) ?? 0) !== version) continue;
+                        setNavigationSaveError(latestSaveErrorRef.current ? `Could not save your changes: ${latestSaveErrorRef.current}` : "Your changes could not be saved. Please try again or leave without saving.");
+                        return;
+                    }
                 }
             }
             if (unsavedNoteIdsRef.current.size > 0) {
@@ -753,6 +788,7 @@ export default function NotesPage() {
             }
             blocker.proceed();
         } finally {
+            savingBeforeNavigationRef.current = false;
             setSavingBeforeNavigation(false);
         }
     };
@@ -764,8 +800,9 @@ export default function NotesPage() {
         blocker.state === "blocked" && hasUnsavedChanges
     );
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (
+            !loading &&
             editorRef.current &&
             activeNote &&
             document.activeElement !== editorRef.current
@@ -776,20 +813,31 @@ export default function NotesPage() {
             editorRef.current.innerHTML = activeNote.content;
             enhanceTables(editorRef.current);
         }
-    }, [activeId, activeNote]);
+    }, [activeId, activeNote, loading]);
 
     const updateActiveNote = (changes) => {
         if (!activeId) return;
         let changedNote = null;
         const version = (noteVersionsRef.current.get(activeId) ?? 0) + 1;
         noteVersionsRef.current.set(activeId, version);
-        updateUnsavedState(activeId, true);
         replaceNotes((current) => current.map((note) => {
             if (note.id !== activeId) return note;
             changedNote = { ...note, ...changes, updatedAt: new Date().toISOString() };
             return changedNote;
         }));
-        if (changedNote) queueNoteSave(changedNote, version);
+        if (changedNote) {
+            const persisted = persistedNotesRef.current.get(activeId);
+            const matchesSavedContent = persisted &&
+                persisted.title === changedNote.title &&
+                persisted.content === changedNote.content;
+            if (matchesSavedContent && !pendingNoteSaveCountsRef.current.has(activeId)) {
+                latestSaveErrorRef.current = "";
+                updateUnsavedState(activeId, false);
+                setSaveError("");
+            } else {
+                updateUnsavedState(activeId, true);
+            }
+        }
     };
 
     const recordEditorChange = (content, coalesceTyping = false) => {
@@ -879,11 +927,8 @@ export default function NotesPage() {
         if (format === "pdf" && !printWindow) { setExportStatus("Allow pop-ups to print this note or save it as PDF."); return; }
         setExportStatus("Preparing export…");
         try {
-            if (unsavedNoteIdsRef.current.has(activeNote.id) || saveTimersRef.current.has(activeNote.id)) {
-                const saved = await flushNoteSave(activeNote);
-                if (!saved || unsavedNoteIdsRef.current.has(activeNote.id)) throw new Error("Save this note successfully before exporting.");
-            }
-            const note = persistedNotesRef.current.get(activeNote.id);
+            let note = latestNotesRef.current.find((item) => item.id === activeNote.id);
+            if (note && editorRef.current) note = { ...note, content: cleanEditorHtml(editorRef.current.innerHTML) };
             if (!note) throw new Error("Saved note content is not available yet.");
             const doc = new DOMParser().parseFromString(note.content || "", "text/html");
             doc.querySelectorAll("script,style,iframe,object,embed,form,button,svg,math,link,meta,.note-table-actions,.note-table-row-handle,.note-table-column-handle,.note-table-resizer").forEach((node) => node.remove());
@@ -932,9 +977,6 @@ export default function NotesPage() {
         setSaveError("");
         try {
             await apiRequest(`/notes/${encodeURIComponent(deleteId)}`, { method: "DELETE" });
-            const timer = saveTimersRef.current.get(deleteId);
-            if (timer) window.clearTimeout(timer);
-            saveTimersRef.current.delete(deleteId);
             const remaining = latestNotesRef.current.filter((note) => note.id !== deleteId);
             replaceNotes(remaining);
             noteVersionsRef.current.delete(deleteId);
@@ -1574,10 +1616,17 @@ export default function NotesPage() {
         );
     };
 
+    const handleSaveShortcut = (event) => {
+        if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "s") return;
+        event.preventDefault();
+        if (activeNoteHasUnsavedChanges) saveActiveNote();
+    };
+
     if (loading) return <NotesPageSkeleton styles={styles} />;
 
     return (
         <div
+            onKeyDownCapture={handleSaveShortcut}
             className={`mx-auto flex min-h-[calc(100dvh-120px)] w-full max-w-7xl overflow-hidden rounded-xl
             border md:h-[calc(100dvh-140px)] md:min-h-[520px] ${styles.border} ${styles.secondaryBg}`}
         >
@@ -1624,7 +1673,6 @@ export default function NotesPage() {
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            if (activeNote?.id !== note.id) flushNoteSave(activeNote);
                                             setActiveId(note.id);
                                             setMenuId(null);
                                         }}
@@ -1675,7 +1723,7 @@ export default function NotesPage() {
                     {saveError && (
                         <div role="alert" className="flex items-center justify-between gap-3 border-b border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-600">
                             <span>{saveError}</span>
-                            {activeNote && <button type="button" onClick={() => flushNoteSave(activeNote)} className="shrink-0 font-semibold underline">Retry save</button>}
+                            {activeNote && <button type="button" onClick={saveActiveNote} className="shrink-0 font-semibold underline">Retry save</button>}
                         </div>
                     )}
                     {loading ? (
@@ -1687,7 +1735,6 @@ export default function NotesPage() {
                                     <select
                                         value={activeNote.id}
                                         onChange={(event) => {
-                                            flushNoteSave(activeNote);
                                             setActiveId(event.target.value);
                                         }}
                                         className={`min-w-0 flex-1 rounded-md border px-2 py-2 text-xs ${styles.input} ${styles.border}`}
@@ -1800,9 +1847,46 @@ export default function NotesPage() {
                                         <Table2 className="h-4 w-4" />
                                     </button>
 
-                                   
-                                    <button type="button" onClick={() => exportNote("docx")} disabled={!activeNote || savingNoteCount > 0} aria-label="Download saved note as Word document" className={`inline-flex min-h-9 items-center gap-1 rounded-lg border px-2 text-xs font-medium ${styles.border} ${styles.secondaryBgHover} disabled:opacity-50`}><Download className="h-3.5 w-3.5" aria-hidden="true" />Word</button>
-                                    <button type="button" onClick={() => exportNote("pdf")} disabled={!activeNote || savingNoteCount > 0} aria-label="Print note or save as PDF" className={`inline-flex min-h-9 items-center gap-1 rounded-lg border px-2 text-xs font-medium ${styles.border} ${styles.secondaryBgHover} disabled:opacity-50`}><Download className="h-3.5 w-3.5" aria-hidden="true" />Print / Save PDF</button>
+                                    <button
+                                        type="button"
+                                        onMouseDown={(event) => event.preventDefault()}
+                                        onClick={saveActiveNote}
+                                        disabled={!activeNoteHasUnsavedChanges || pendingNoteSaveCountsRef.current.has(activeNote.id)}
+                                        aria-keyshortcuts="Control+S Meta+S"
+                                        aria-label={pendingNoteSaveCountsRef.current.has(activeNote.id) ? "Saving note" : activeNoteHasUnsavedChanges ? "Save note" : "Note saved"}
+                                        title="Save note (Ctrl+S or Cmd+S)"
+                                        className={`inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg border px-2 text-xs font-medium ${styles.border} ${styles.secondaryBgHover} disabled:cursor-not-allowed disabled:opacity-50`}
+                                    >
+                                        <SaveIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                                        {pendingNoteSaveCountsRef.current.has(activeNote.id) ? "Saving…" : activeNoteHasUnsavedChanges ? "Save" : "Saved"}
+                                    </button>
+                                    <div ref={exportMenuRef} className="relative shrink-0">
+                                        <button
+                                            ref={exportButtonRef}
+                                            type="button"
+                                            onClick={() => setExportMenuOpen((open) => !open)}
+                                            disabled={!activeNote || savingNoteCount > 0}
+                                            aria-haspopup="menu"
+                                            aria-expanded={exportMenuOpen}
+                                            aria-controls="note-export-menu"
+                                            className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium ${styles.border} ${styles.secondaryBgHover} disabled:cursor-not-allowed disabled:opacity-50`}
+                                        >
+                                            <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                                            Export
+                                            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${exportMenuOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+                                        </button>
+                                        {exportMenuOpen && <div id="note-export-menu" role="menu" aria-label="Export note" onKeyDown={(event) => {
+                                            if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+                                            const items = Array.from(event.currentTarget.querySelectorAll('[role="menuitem"]'));
+                                            const currentIndex = items.indexOf(document.activeElement);
+                                            const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (currentIndex + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+                                            event.preventDefault();
+                                            items[nextIndex]?.focus();
+                                        }} className={`absolute right-0 top-full z-50 mt-1 min-w-44 rounded-lg border p-1 shadow-lg ${styles.border} ${styles.secondaryBg}`}>
+                                            <button type="button" role="menuitem" onClick={() => { setExportMenuOpen(false); exportNote("docx"); }} className={`block w-full rounded-md px-3 py-2 text-left text-sm ${styles.secondaryBgHover}`}>Download Word (.docx)</button>
+                                            <button type="button" role="menuitem" onClick={() => { setExportMenuOpen(false); exportNote("pdf"); }} className={`block w-full rounded-md px-3 py-2 text-left text-sm ${styles.secondaryBgHover}`}>Save as PDF</button>
+                                        </div>}
+                                    </div>
                                     <span className={`mx-1 h-5 w-px shrink-0 ${styles.grayBg}`} />
                                     <button type="button" onClick={() => setDeleteId(activeNote.id)} aria-label={`Delete ${activeNote.title}`} title="Delete note" className="shrink-0 rounded p-2 text-gray-400 hover:bg-red-500/10 hover:text-red-500">
                                         <Trash2 className="h-4 w-4" />
@@ -1923,13 +2007,13 @@ export default function NotesPage() {
                         aria-modal="true"
                         aria-labelledby="unsaved-note-title"
                         aria-describedby="unsaved-note-description"
-                        className={`w-full max-w-md rounded-xl border p-5 ${styles.border} ${styles.secondaryBg} ${styles.shadow}`}
+                        className={`w-full max-w-md rounded-xl border p-6 ${styles.border} ${styles.secondaryBg} ${styles.shadow}`}
                     >
-                        <h2 id="unsaved-note-title" className={`font-semibold ${styles.primaryText}`}>
+                        <h2 id="notebook-modal-title" className={`text-xl font-semibold ${styles.primaryText}`}>
                             Save your changes before leaving?
                         </h2>
-                        <p id="unsaved-note-description" className={`mt-2 text-sm ${styles.secondaryText}`}>
-                            This note has unsaved changes. You can save them before leaving or discard them.
+                        <p id="unsaved-note-description" className={`mt-3 text-sm ${styles.secondaryText}`}>
+                            Your note changes have not been saved yet. You can save them before leaving or discard them.
                         </p>
                         {savingNoteCount > 0 && (
                             <p role="status" className={`mt-3 text-sm ${styles.secondaryText}`}>
@@ -1941,29 +2025,29 @@ export default function NotesPage() {
                                 {navigationSaveError}
                             </p>
                         )}
-                        <div className="mt-5 flex flex-wrap justify-end gap-2">
+                        <div className="mt-8 flex flex-wrap justify-end gap-1.5">
                             <button
                                 type="button"
                                 onClick={stayOnPage}
-                                className={`min-h-10 px-4 py-2 text-sm ${styles.buttonGray}`}
+                                className={`px-4 py-2 rounded-md text-sm ${styles.buttonFrost}`}
                             >
-                                Stay on page
+                                Cancel
                             </button>
                             <button
                                 type="button"
                                 disabled={savingNoteCount > 0 || savingBeforeNavigation}
                                 onClick={discardAndProceed}
-                                className={`min-h-10 px-4 py-2 text-sm ${styles.buttonGray} disabled:cursor-not-allowed disabled:opacity-50`}
+                                className={`px-4 py-2 rounded-md text-sm ${styles.buttonFrost}`}
                             >
-                                Leave without saving
+                                Don't Save
                             </button>
                             <button
                                 type="button"
                                 disabled={savingNoteCount > 0 || savingBeforeNavigation}
                                 onClick={saveAndProceed}
-                                className={`min-h-10 px-4 py-2 text-sm ${styles.buttonBlue} disabled:cursor-not-allowed disabled:opacity-50`}
+                                className={`px-4 py-2 rounded-md text-sm ${styles.buttonPrimary} disabled:cursor-not-allowed disabled:opacity-50`}
                             >
-                                {savingBeforeNavigation ? "Saving..." : "Save and leave"}
+                                {savingBeforeNavigation ? "Saving..." : "Save"}
                             </button>
                         </div>
                     </div>

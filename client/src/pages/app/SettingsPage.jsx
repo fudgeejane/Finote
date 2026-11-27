@@ -6,7 +6,7 @@ import {
     getCountryCallingCode,
     parsePhoneNumberFromString,
 } from "libphonenumber-js";
-import { Bell, ChevronRight, FileText, KeyRound, Search, ShieldCheck, Trash2, Upload, User } from "lucide-react";
+import { Bell, ChevronRight, FileText, KeyRound, Search, ShieldCheck, Trash2, Upload, User, X } from "lucide-react";
 import Styling from "../../components/theme/Styling";
 import { privacySections, terms } from "../../data/legalContent";
 import { useAuth } from "../../auth/AuthContext";
@@ -79,12 +79,35 @@ const settingsSections = [
     },
 ];
 
+const searchableSettings = [
+    { section: "profile", title: "Personal details", description: "Manage your profile information", target: "settings-firstName" },
+    { section: "account-settings", title: "Account settings", description: "Password and account actions", target: "change-password-heading" },
+    { section: "notifications", title: "Notifications", description: "Choose in-app and email alerts", target: "settings-notification-examResult" },
+    { section: "terms-of-service", title: "Terms of Service", description: "Review the terms for using Finote", target: "settings-panel-title" },
+    { section: "privacy-policy", title: "Privacy Policy", description: "Review how privacy is handled", target: "settings-panel-title" },
+    { section: "profile", title: "Profile photo", description: "Upload, change, or remove your profile picture", target: "settings-photo-button" },
+    { section: "profile", title: "First name", description: "Update your first name", target: "settings-firstName" },
+    { section: "profile", title: "Middle name", description: "Update your middle name", target: "settings-middleName" },
+    { section: "profile", title: "Last name", description: "Update your last name", target: "settings-lastName" },
+    { section: "profile", title: "Date of birth", description: "Personal details birthday", target: "settings-dateOfBirth" },
+    { section: "profile", title: "Gender", description: "Personal details gender", target: "settings-gender" },
+    { section: "profile", title: "Email address", description: "Saved account email address", target: "settings-email" },
+    { section: "profile", title: "Mobile number", description: "Contact information phone number", target: "settings-mobile-number" },
+    { section: "profile", title: "Address", description: "Country street city province postal code", target: "settings-country" },
+    { section: "account-settings", title: "Change password", description: "Account security current and new password", target: "settings-current-password" },
+    { section: "account-settings", title: "Delete account", description: "Permanently delete your account and data", target: "settings-delete-account" },
+    { section: "notifications", title: "Exam result notifications", description: "Choose in-app and email preferences for exam results", target: "settings-notification-examResult" },
+    { section: "notifications", title: "Class reminder notifications", description: "Choose in-app and email preferences for class reminders", target: "settings-notification-classReminder" },
+    { section: "notifications", title: "Account security notifications", description: "Choose in-app and email preferences for account updates", target: "settings-notification-accountSecurity" },
+];
+
 export default function SettingsPage() {
     const styles = Styling();
     const location = useLocation();
     const { user, apiRequest, setUser } = useAuth();
     const [activeSection, setActiveSection] = useState(location.state?.section || "profile");
     const [search, setSearch] = useState("");
+    const [activeSearchResult, setActiveSearchResult] = useState(0);
     const [profile, setProfile] = useState(() => getInitialProfile(user));
     const [savingProfile, setSavingProfile] = useState(false);
     const [pictureBusy, setPictureBusy] = useState(false);
@@ -94,6 +117,7 @@ export default function SettingsPage() {
     const [preferencesSaving, setPreferencesSaving] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const pictureInputRef = useRef(null);
+    const searchInputRef = useRef(null);
 
     useEffect(() => {
         if (location.state?.section) setActiveSection(location.state.section);
@@ -114,14 +138,52 @@ export default function SettingsPage() {
         finally { setPreferencesSaving(false); }
     };
 
+    const normalizedSearch = search.trim().toLocaleLowerCase();
+    const searchResults = useMemo(() => {
+        if (!normalizedSearch) return [];
+        return searchableSettings.filter(({ section, title, description }) => {
+            const sectionTitle = settingsSections.flatMap((group) => group.items.map((item) => ({ ...item, sectionTitle: group.title }))).find((item) => item.id === section)?.sectionTitle || (section === "terms-of-service" || section === "privacy-policy" ? "Support" : "");
+            return `${sectionTitle} ${title} ${description}`.toLocaleLowerCase().includes(normalizedSearch);
+        });
+    }, [normalizedSearch]);
     const filteredSections = useMemo(() => settingsSections
         .map((section) => ({
             ...section,
             items: section.items.filter((item) =>
-                `${section.title} ${item.label} ${item.description}`.toLowerCase().includes(search.trim().toLowerCase())
+                !normalizedSearch || `${section.title} ${item.label} ${item.description}`.toLocaleLowerCase().includes(normalizedSearch)
             ),
         }))
-        .filter((section) => section.items.length > 0), [search]);
+        .filter((section) => section.items.length > 0), [normalizedSearch]);
+
+    const chooseSearchResult = (result) => {
+        setActiveSection(result.section);
+        setSearch("");
+        setActiveSearchResult(0);
+        window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() => {
+                const target = document.getElementById(result.target);
+                target?.scrollIntoView({ behavior: "smooth", block: "center" });
+                target?.focus({ preventScroll: true });
+            });
+        });
+    };
+
+    const handleSearchKeyDown = (event) => {
+        if (event.key === "ArrowDown" && searchResults.length) {
+            event.preventDefault();
+            setActiveSearchResult((index) => (index + 1) % searchResults.length);
+        } else if (event.key === "ArrowUp" && searchResults.length) {
+            event.preventDefault();
+            setActiveSearchResult((index) => (index - 1 + searchResults.length) % searchResults.length);
+        } else if (event.key === "Enter" && searchResults.length) {
+            event.preventDefault();
+            chooseSearchResult(searchResults[activeSearchResult] || searchResults[0]);
+        } else if (event.key === "Escape" && search) {
+            event.preventDefault();
+            setSearch("");
+            setActiveSearchResult(0);
+        }
+    };
     const selectedItem = settingsSections.flatMap((section) => section.items).find((item) => item.id === activeSection);
     const selectedPolicy = activeSection === "terms-of-service"
         ? {
@@ -288,14 +350,32 @@ export default function SettingsPage() {
                         <Search className={`absolute left-3 top-2.5 h-4 w-4 ${styles.tertiaryText}`} aria-hidden="true" />
                         <span className="sr-only">Search settings</span>
                         <input
+                            ref={searchInputRef}
                             value={search}
-                            onChange={(event) => setSearch(event.target.value)}
+                            onChange={(event) => { setSearch(event.target.value); setActiveSearchResult(0); }}
+                            onKeyDown={handleSearchKeyDown}
                             placeholder="Search settings"
-                            className={`w-full rounded-full border py-2 pl-9 pr-3 text-sm ${styles.input} ${styles.border}`}
+                            role="combobox"
+                            aria-autocomplete="list"
+                            aria-expanded={Boolean(normalizedSearch && searchResults.length)}
+                            aria-controls={searchResults.length ? "settings-search-results" : undefined}
+                            aria-activedescendant={normalizedSearch && searchResults.length ? `settings-result-${activeSearchResult}` : undefined}
+                            aria-describedby={normalizedSearch && searchResults.length === 0 ? "settings-search-empty" : undefined}
+                            className={`w-full rounded-full border py-2 pl-9 ${search ? "pr-9" : "pr-3"} text-sm ${styles.input} ${styles.border}`}
                         />
+                        {search && <button type="button" onClick={() => { setSearch(""); setActiveSearchResult(0); searchInputRef.current?.focus(); }} aria-label="Clear settings search" className={`absolute right-2 top-1.5 grid h-7 w-7 place-items-center rounded-full ${styles.secondaryBgHover}`}><X className="h-4 w-4" aria-hidden="true" /></button>}
                     </label>
 
-                    <nav aria-label="Settings" className="mt-4 space-y-5">
+                    {normalizedSearch ? (
+                        <div className="mt-3">
+                            {searchResults.length ? <ul id="settings-search-results" role="listbox" aria-label="Matching settings" className="max-h-[55vh] space-y-1 overflow-y-auto">
+                                {searchResults.map((result, index) => <li key={`${result.section}-${result.title}`} role="presentation"><button id={`settings-result-${index}`} type="button" role="option" aria-selected={activeSearchResult === index} onMouseEnter={() => setActiveSearchResult(index)} onClick={() => chooseSearchResult(result)} className={`w-full rounded-lg px-3 py-2.5 text-left ${activeSearchResult === index ? "bg-blue-600/10" : styles.secondaryBgHover}`}>
+                                    <span className={`block text-sm font-semibold ${styles.primaryText}`}>{result.title}</span><span className={`mt-0.5 block text-xs ${styles.secondaryText}`}>{result.description}</span><span className={`mt-1 block text-[10px] uppercase tracking-wide ${styles.tertiaryText}`}>{settingsSections.find((group) => group.items.some((item) => item.id === result.section))?.title || "Support"}</span>
+                                </button></li>)}
+                            </ul> : <p id="settings-search-empty" role="status" className={`px-2 py-5 text-center text-sm ${styles.secondaryText}`}>No settings found for “{search.trim()}”.</p>}
+                            <p className="sr-only" aria-live="polite">{searchResults.length} matching settings. Use the up and down arrow keys to navigate, then press Enter to open a result.</p>
+                        </div>
+                    ) : <nav aria-label="Settings" className="mt-4 space-y-5">
                         {filteredSections.map((section) => (
                             <section key={section.title}>
                                 <h2 className={`px-2 pb-1 text-xs font-semibold uppercase tracking-wide ${styles.tertiaryText}`}>
@@ -332,12 +412,12 @@ export default function SettingsPage() {
                         {filteredSections.length === 0 && (
                             <p className={`px-2 py-5 text-center text-sm ${styles.secondaryText}`}>No settings match your search.</p>
                         )}
-                    </nav>
+                    </nav>}
                 </aside>
 
                 <section aria-label={selectedPolicy?.title || "Settings panel"} className={`min-w-0 rounded-lg border p-5 sm:p-7 ${styles.border} ${styles.secondaryBg}`}>
                     <header className={`mb-6 border-b pb-5 ${styles.border}`}>
-                        <h2 id="settings-panel-title" className="text-lg sm:text-xl md:text-2xl font-semibold">{selectedPolicy?.title || selectedItem?.label}</h2>
+                        <h2 id="settings-panel-title" tabIndex={-1} className="text-lg sm:text-xl md:text-2xl font-semibold">{selectedPolicy?.title || selectedItem?.label}</h2>
                         <p className={`mt-1 text-sm ${styles.secondaryText}`}>{selectedPolicy?.description || selectedItem?.description}</p>
                     </header>
 
@@ -359,7 +439,7 @@ export default function SettingsPage() {
                             {activeSection === "notifications" && (
                                 <form onSubmit={saveNotificationPreferences} className="space-y-6">
                                     <p className={`text-sm ${styles.secondaryText}`}>Choose where Finote can notify you about learning and account activity.</p>
-                                    <div className="overflow-x-auto"><table className="w-full min-w-[30rem] text-left text-sm"><thead><tr className={`border-b ${styles.border}`}><th className="py-3 pr-4 font-medium">Event</th><th className="px-3 py-3 text-center font-medium">In app</th><th className="px-3 py-3 text-center font-medium">Email</th></tr></thead><tbody>{[["examResult", "Exam results"], ["classReminder", "Class reminders"], ["accountSecurity", "Account and security updates"]].map(([key, label]) => <tr key={key} className={`border-b last:border-0 ${styles.border}`}><th scope="row" className="py-4 pr-4 font-medium">{label}</th>{["inApp", "email"].map((channel) => <td key={channel} className="px-3 py-4 text-center"><input type="checkbox" aria-label={`${label}: ${channel === "inApp" ? "in app" : "email"}`} checked={preferences[key][channel]} onChange={(event) => setPreferences((current) => ({ ...current, [key]: { ...current[key], [channel]: event.target.checked } }))} className="h-4 w-4 accent-blue-600" /></td>)}</tr>)}</tbody></table></div>
+                                    <div className="overflow-x-auto"><table className="w-full min-w-[30rem] text-left text-sm"><thead><tr className={`border-b ${styles.border}`}><th className="py-3 pr-4 font-medium">Event</th><th className="px-3 py-3 text-center font-medium">In app</th><th className="px-3 py-3 text-center font-medium">Email</th></tr></thead><tbody>{[["examResult", "Exam results"], ["classReminder", "Class reminders"], ["accountSecurity", "Account and security updates"]].map(([key, label]) => <tr id={`settings-notification-${key}`} tabIndex={-1} key={key} className={`border-b last:border-0 ${styles.border}`}><th scope="row" className="py-4 pr-4 font-medium">{label}</th>{["inApp", "email"].map((channel) => <td key={channel} className="px-3 py-4 text-center"><input type="checkbox" aria-label={`${label}: ${channel === "inApp" ? "in app" : "email"}`} checked={preferences[key][channel]} onChange={(event) => setPreferences((current) => ({ ...current, [key]: { ...current[key], [channel]: event.target.checked } }))} className="h-4 w-4 accent-blue-600" /></td>)}</tr>)}</tbody></table></div>
                                     <button type="submit" disabled={preferencesSaving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60">{preferencesSaving ? "Saving…" : "Save preferences"}</button>
                                 </form>
                             )}
@@ -390,6 +470,7 @@ export default function SettingsPage() {
                                                 />
                                                 <div className="mt-2 flex flex-wrap items-center gap-2">
                                                     <button
+                                                        id="settings-photo-button"
                                                         type="button"
                                                         onClick={() => pictureInputRef.current?.click()}
                                                         disabled={pictureBusy}
@@ -422,8 +503,9 @@ export default function SettingsPage() {
                                                 { key: "lastName", label: "Last name", required: true },
                                             ].map(({ key, label, required }) => (
                                                 <label key={key} className={`text-sm font-medium ${styles.primaryText}`}>
-                                                    {label}{required && " *"}
+                                                        {label}{required && " *"}
                                                     <input
+                                                        id={`settings-${key}`}
                                                         value={profile[key]}
                                                         onChange={(event) => setProfile((current) => ({ ...current, [key]: event.target.value }))}
                                                         required={required}
@@ -435,6 +517,7 @@ export default function SettingsPage() {
                                             <label className={`text-sm font-medium ${styles.primaryText}`}>
                                                 Date of birth
                                                 <input
+                                                    id="settings-dateOfBirth"
                                                     type="date"
                                                     value={profile.dateOfBirth}
                                                     max={new Date().toISOString().slice(0, 10)}
@@ -445,6 +528,7 @@ export default function SettingsPage() {
                                             <label className={`text-sm font-medium ${styles.primaryText}`}>
                                                 Gender
                                                 <select
+                                                    id="settings-gender"
                                                     value={profile.gender}
                                                     onChange={(event) => setProfile((current) => ({ ...current, gender: event.target.value }))}
                                                     className={`mt-1.5 w-full rounded-lg border px-3 py-2.5 text-sm ${styles.input} ${styles.border}`}
@@ -461,7 +545,7 @@ export default function SettingsPage() {
                                     <section aria-labelledby="contact-details-heading" className={`border-t pt-6 ${styles.border}`}>
                                         <h3 id="contact-details-heading" className="font-semibold">Contact information</h3>
                                         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                                            <label className={`text-sm font-medium ${styles.primaryText}`}>
+                                            <label id="settings-email" tabIndex={-1} className={`text-sm font-medium ${styles.primaryText}`}>
                                                 Email address
                                                 <input
                                                     type="email"
@@ -520,6 +604,7 @@ export default function SettingsPage() {
                                             <label className={`text-sm font-medium sm:col-span-2 ${styles.primaryText}`}>
                                                 Country
                                                 <select
+                                                    id="settings-country"
                                                     value={profile.address.country}
                                                     onChange={(event) => updateAddressCountry(event.target.value)}
                                                     className={`mt-1.5 w-full rounded-lg border px-3 py-2.5 text-sm ${styles.input} ${styles.border}`}
@@ -574,6 +659,7 @@ export default function SettingsPage() {
                                                 <label key={key} className={`text-sm font-medium ${styles.primaryText}`}>
                                                     {label}
                                                     <input
+                                                        id={key === "current" ? "settings-current-password" : undefined}
                                                         type="password"
                                                         autoComplete={autocomplete}
                                                         value={passwords[key]}
@@ -605,6 +691,7 @@ export default function SettingsPage() {
                                             Account deletion is permanent. This preview will not delete your account or data.
                                         </p>
                                         <button
+                                            id="settings-delete-account"
                                             type="button"
                                             onClick={() => setDeleteDialogOpen(true)}
                                             className={`mt-4 inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold ${styles.buttonRed}`}

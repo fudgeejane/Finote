@@ -37,50 +37,34 @@ const navigation = [
 ];
 
 
-const searchItems = [
-  { label: "Home", to: "/home", description: "Your study dashboard" },
-  {
-    label: "My Schedule",
-    to: "/schedule",
-    description: "View and manage your weekly classes",
-  },
-  {
-    label: "My Notes",
-    to: "/notes",
-    description: "Create and find your notes",
-  },
-  {
-    label: "Study Tools",
-    to: "/study-tools",
-    description: "Flashcards and mock exams",
-  },
-  {
-    label: "Flashcards",
-    to: "/study-tools",
-    state: { tab: "flashcards" },
-    description: "Review with flashcards",
-  },
-  {
-    label: "Mock Exams",
-    to: "/study-tools",
-    state: { tab: "mock-exams" },
-    description: "Prepare with a mock exam",
-  },
-  {
-    label: "Learning Progress",
-    to: "/progress",
-    description: "Review your learning progress",
-  },
-  {
-    label: "Settings",
-    to: "/settings",
-    description: "Manage your profile and account",
-  },
+const searchGroups = [
+  { key: "notes", label: "Notes", href: (item) => `/notes?notebookId=${encodeURIComponent(item.notebookId)}&noteId=${encodeURIComponent(item.id)}` },
+  { key: "flashcards", label: "Flashcards", href: (item) => `/flashcards/${encodeURIComponent(item.id)}` },
+  { key: "mockExams", label: "Mock exams", href: (item) => `/mock-exams/${encodeURIComponent(item.id)}` },
+  { key: "schedules", label: "Schedules", href: () => "/schedule" },
 ];
 
-function formatNotificationTime(value) {
+function formatNotificationTime(value, now = Date.now()) {
   const date = new Date(value);
-  return `${date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}, ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+  const elapsed = Math.max(0, now - date.getTime());
+  const minute = 60_000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (elapsed < minute) return "Just now";
+  if (elapsed < hour) {
+    const minutes = Math.floor(elapsed / minute);
+    return `${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`;
+  }
+  if (elapsed < day) {
+    const hours = Math.floor(elapsed / hour);
+    return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  }
+  if (elapsed < 2 * day) return "Yesterday";
+  if (elapsed <= 7 * day) {
+    const days = Math.floor(elapsed / day);
+    return `${days} days ago`;
+  }
+  return `${date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} at ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
 }
 
 export default function PrivateLayout() {
@@ -94,12 +78,23 @@ export default function PrivateLayout() {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationClock, setNotificationClock] = useState(() => Date.now());
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState({});
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [activeSearchIndex, setActiveSearchIndex] = useState(0);
+  const [searchAttempt, setSearchAttempt] = useState(0);
   const searchInputRef = useRef(null);
   const searchTriggerRef = useRef(null);
   const profileMenuRef = useRef(null);
   const notificationsRef = useRef(null);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNotificationClock(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const loadNotifications = useCallback(async () => {
     setNotificationsLoading(true);
@@ -187,11 +182,33 @@ export default function PrivateLayout() {
         ? `${styles.blueBg2} ${styles.blueText}`
         : `${styles.sidebarText} ${styles.secondaryBgHover} ${styles.sidebarTextHover}`
     }`;
-  const filteredSearchItems = searchItems.filter(({ label, description }) =>
-    `${label} ${description}`
-      .toLowerCase()
-      .includes(searchQuery.trim().toLowerCase()),
-  );
+  const flatSearchResults = searchGroups.flatMap((group) => (searchResults[group.key] || []).map((item) => ({ ...item, group })));
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    setSearchResults({});
+    setSearchError("");
+    setActiveSearchIndex(0);
+    if (!searchOpen || query.length < 2) { setSearchLoading(false); return undefined; }
+    const controller = new AbortController();
+    setSearchLoading(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await apiRequest(`/search?q=${encodeURIComponent(query)}`, { signal: controller.signal });
+        if (!controller.signal.aborted) setSearchResults(response.results || {});
+      } catch (error) {
+        if (!controller.signal.aborted && error.name !== "AbortError") setSearchError(error.message || "Search is temporarily unavailable.");
+      } finally {
+        if (!controller.signal.aborted) setSearchLoading(false);
+      }
+    }, 250);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [apiRequest, searchAttempt, searchOpen, searchQuery]);
+
+  const openSearchResult = (item) => {
+    setSearchOpen(false);
+    navigate(item.group.href(item));
+  };
   const displayName =
     [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
     user?.email ||
@@ -259,7 +276,7 @@ export default function PrivateLayout() {
                   </div>
                   <div className="max-h-96 overflow-y-auto" aria-live="polite">
                     {notificationsLoading && notifications.length === 0 ? <p className={`p-5 text-center text-sm ${styles.sidebarMutedText}`}>Loading notifications…</p> : notifications.length === 0 ? <p className={`p-5 text-center text-sm ${styles.sidebarMutedText}`}>You’re all caught up.</p> : notifications.map((item) => <button key={item._id} type="button" onClick={() => markNotificationRead(item)} className={`block w-full border-b px-4 py-3 text-left last:border-0 ${styles.border} ${styles.secondaryBgHover} ${!item.readAt ? "bg-blue-500/5" : ""}`}>
-                      <span className="flex items-start gap-2"><span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${item.readAt ? "bg-transparent" : "bg-blue-500"}`} aria-hidden="true" /><span className="min-w-0"><span className="block text-sm font-semibold">{item.title}</span><span className={`mt-0.5 block text-xs ${styles.sidebarMutedText}`}>{item.message}</span><time className={`mt-1 block text-[10px] ${styles.sidebarMutedText}`} dateTime={item.occurredAt}>{formatNotificationTime(item.occurredAt)}</time></span></span>
+                      <span className="flex items-start gap-2"><span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${item.readAt ? "bg-transparent" : "bg-blue-500"}`} aria-hidden="true" /><span className="min-w-0"><span className="block text-sm font-semibold">{item.title}</span><span className={`mt-0.5 block text-xs ${styles.sidebarMutedText}`}>{item.message}</span><time className={`mt-1 block text-[10px] ${styles.sidebarMutedText}`} dateTime={item.createdAt || item.occurredAt}>{formatNotificationTime(item.createdAt || item.occurredAt, notificationClock)}</time></span></span>
                     </button>)}
                   </div>
                   <Link to="/settings" state={{ section: "notifications" }} onClick={() => setNotificationsOpen(false)} className={`block border-t px-4 py-2 text-xs ${styles.border} ${styles.blueText}`}>Notification preferences</Link>
@@ -413,8 +430,18 @@ export default function PrivateLayout() {
                 ref={searchInputRef}
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search pages and study tools..."
-                aria-label="Search pages and study tools"
+                placeholder="Search notes, study materials, classes..."
+                aria-label="Search notes, flashcards, mock exams, and schedules"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={searchQuery.trim().length >= 2}
+                aria-controls="workspace-search-results"
+                aria-activedescendant={flatSearchResults.length ? `workspace-search-option-${activeSearchIndex}` : undefined}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown" && flatSearchResults.length) { event.preventDefault(); setActiveSearchIndex((index) => (index + 1) % flatSearchResults.length); }
+                  if (event.key === "ArrowUp" && flatSearchResults.length) { event.preventDefault(); setActiveSearchIndex((index) => (index - 1 + flatSearchResults.length) % flatSearchResults.length); }
+                  if (event.key === "Enter" && flatSearchResults.length) { event.preventDefault(); openSearchResult(flatSearchResults[activeSearchIndex]); }
+                }}
                 className={`min-w-0 flex-1 bg-transparent py-4 text-sm outline-none ${styles.primaryText}`}
               />
               <button
@@ -429,33 +456,18 @@ export default function PrivateLayout() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="max-h-[55vh] overflow-y-auto p-2">
-              {filteredSearchItems.length ? (
-                filteredSearchItems.map(({ label, to, state, description }) => (
-                  <Link
-                    key={label}
-                    to={to}
-                    state={state}
-                    onClick={() => setSearchOpen(false)}
-                    className={`flex flex-col rounded-lg px-3 py-2.5 ${styles.secondaryBgHover}`}
-                  >
-                    <span
-                      className={`text-sm font-medium ${styles.primaryText}`}
-                    >
-                      {label}
-                    </span>
-                    <span className={`mt-0.5 text-xs ${styles.tertiaryText}`}>
-                      {description}
-                    </span>
-                  </Link>
-                ))
-              ) : (
-                <p
-                  className={`px-3 py-8 text-center text-sm ${styles.secondaryText}`}
-                >
-                  No pages or study tools found.
-                </p>
-              )}
+            <div id="workspace-search-results" role="listbox" aria-label="Search results" aria-busy={searchLoading} className="max-h-[min(55vh,28rem)] overflow-y-auto p-2">
+              {!searchQuery.trim() || searchQuery.trim().length < 2 ? <p className={`px-3 py-8 text-center text-sm ${styles.secondaryText}`}>Type at least 2 characters to search your study content.</p>
+                    : searchLoading ? <p role="status" className={`px-3 py-8 text-center text-sm ${styles.secondaryText}`}>Searching your content...</p>
+                  : searchError ? <div className="px-3 py-6 text-center"><p role="alert" className="text-sm text-red-600">{searchError}</p><button type="button" onClick={() => setSearchAttempt((attempt) => attempt + 1)} className={`mt-2 text-sm underline ${styles.blueText}`}>Try again</button></div>
+                    : flatSearchResults.length ? searchGroups.map((group) => {
+                      const items = searchResults[group.key] || [];
+                      if (!items.length) return null;
+                      return <div key={group.key} role="group" aria-label={group.label} className="py-1"><h3 role="presentation" className={`px-3 py-1.5 text-xs font-semibold uppercase tracking-wide ${styles.tertiaryText}`}>{group.label}</h3>{items.map((item) => {
+                        const index = flatSearchResults.findIndex((row) => row.group.key === group.key && row.id === item.id);
+                        return <button id={`workspace-search-option-${index}`} key={`${group.key}-${item.id}`} type="button" role="option" aria-selected={activeSearchIndex === index} onMouseEnter={() => setActiveSearchIndex(index)} onClick={() => openSearchResult({ ...item, group })} className={`flex w-full flex-col rounded-lg px-3 py-2.5 text-left ${styles.secondaryBgHover} ${activeSearchIndex === index ? "bg-blue-500/10" : ""}`}><span className={`text-sm font-medium ${styles.primaryText}`}>{item.title}</span><span className={`mt-0.5 line-clamp-2 text-xs ${styles.tertiaryText}`}>{item.context}</span></button>;
+                      })}</div>;
+                    }) : <p role="status" className={`px-3 py-8 text-center text-sm ${styles.secondaryText}`}>No study content found.</p>}
             </div>
           </section>
         </div>
