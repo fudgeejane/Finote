@@ -10,6 +10,7 @@ const NoteRoutes = require("./routes/NoteRoutes");
 const StudyMaterialRoutes = require("./routes/StudyMaterialRoutes");
 const ScheduleRoutes = require("./routes/ScheduleRoutes");
 const LearningActivityRoutes = require("./routes/LearningActivityRoutes");
+const FinnieRoutes = require("./routes/FinnieRoutes");
 const { startScheduleReminderWorker } = require("./services/ScheduleReminderService");
 
 const express = require("express");
@@ -86,6 +87,7 @@ app.use("/api/notes", NoteRoutes);
 app.use("/api/study-materials", StudyMaterialRoutes);
 app.use("/api/learning-activity", LearningActivityRoutes);
 app.use("/api/schedules", ScheduleRoutes);
+app.use("/api/finnie", FinnieRoutes);
 
 app.use((error, req, res, next) => {
   if (error.type === "entity.parse.failed") {

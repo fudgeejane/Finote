@@ -25,6 +25,7 @@ import BreadCrumbs from "../components/ui/BreadCrumbs";
 import { useAuth } from "../auth/AuthContext";
 import { useDarkMode } from "../components/theme/DarkModeContext";
 import Logo from "../../../public/Finote.png";
+import FinnieChat from "../components/utils/bot/FinnieChat";
 
 const navigation = [
   { label: "Home", to: "/home", icon: Home },
@@ -421,6 +422,7 @@ export default function PrivateLayout() {
         <BreadCrumbs />
         <Outlet />
       </main>
+      {!location.pathname.startsWith("/mock-exams/") && <FinnieChat />}
     </div>
   );
 }

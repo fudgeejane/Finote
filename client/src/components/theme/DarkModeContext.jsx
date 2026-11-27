@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 const DarkModeContext = createContext();
 const THEME_STORAGE_KEY = 'finote-theme';
@@ -16,6 +16,7 @@ function getInitialDarkMode() {
 
 export function DarkModeProvider({ children }) {
   const [darkMode, setDarkMode] = useState(getInitialDarkMode);
+  const transitionTimer = useRef(null);
 
   // Persist the selection and set native controls and scrollbars to match.
   useEffect(() => {
@@ -27,7 +28,15 @@ export function DarkModeProvider({ children }) {
     }
   }, [darkMode]);
 
-  const toggleDarkMode = () => setDarkMode((prev) => !prev);
+  useEffect(() => () => window.clearTimeout(transitionTimer.current), []);
+
+  const toggleDarkMode = useCallback(() => {
+    const root = document.documentElement;
+    root.classList.add('theme-changing');
+    window.requestAnimationFrame(() => setDarkMode((prev) => !prev));
+    window.clearTimeout(transitionTimer.current);
+    transitionTimer.current = window.setTimeout(() => root.classList.remove('theme-changing'), 360);
+  }, []);
 
   return (
     <DarkModeContext.Provider value={{ darkMode, toggleDarkMode }}>

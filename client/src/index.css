@@ -1,6 +1,45 @@
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300..700;1,300..700&display=swap');
 @import "tailwindcss";
 
+/* Interpolate theme colors only while the user switches themes. */
+.theme-changing,
+.theme-changing *,
+.theme-changing *::before,
+.theme-changing *::after {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, box-shadow !important;
+  transition-duration: 320ms !important;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
+  transition-delay: 0ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-changing,
+  .theme-changing *,
+  .theme-changing *::before,
+  .theme-changing *::after {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.finnie-markdown { overflow-wrap: anywhere; }
+.finnie-markdown > * + * { margin-top: 0.55rem; }
+.finnie-markdown h1, .finnie-markdown h2, .finnie-markdown h3 { font-weight: 650; line-height: 1.3; }
+.finnie-markdown h1 { font-size: 1.05rem; }
+.finnie-markdown h2 { font-size: 0.98rem; }
+.finnie-markdown h3 { font-size: 0.92rem; }
+.finnie-markdown ul, .finnie-markdown ol { padding-left: 1.35rem; }
+.finnie-markdown ul { list-style: disc; }
+.finnie-markdown ol { list-style: decimal; }
+.finnie-markdown li + li { margin-top: 0.2rem; }
+.finnie-markdown blockquote { margin-left: 0.5rem; border-left: 2px solid #60a5fa; padding-left: 0.65rem; opacity: 0.85; }
+.finnie-markdown a { color: #2563eb; text-decoration: underline; }
+.finnie-typing { display: inline-flex; gap: 3px; align-items: center; }
+.finnie-typing i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: finnie-bounce 900ms infinite ease-in-out; }
+.finnie-typing i:nth-child(2) { animation-delay: 120ms; }
+.finnie-typing i:nth-child(3) { animation-delay: 240ms; }
+@keyframes finnie-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .55; } 30% { transform: translateY(-4px); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .finnie-typing i { animation: none; } }
+
 @theme {
   --font-cormorant: "Cormorant Garamond", serif;
 }

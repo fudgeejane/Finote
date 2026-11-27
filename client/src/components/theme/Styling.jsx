@@ -91,8 +91,8 @@ export default function Styling() {
 
     // Inputs
     input: darkMode
-      ? 'focus:outline-none focus:ring-0 focus:border-blue-400 bg-[#292929] border-[#4A4A4A] text-[#E0E0E0] placeholder:text-[#8A8A8A]'
-      : 'focus:outline-none focus:ring-0 focus:border-blue-600 bg-[#FAFAFA] border-[#BDBDBD] text-[#333333] placeholder:text-[#707070]',
+  ? 'focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-400 bg-[#292929] border-[#4A4A4A] text-[#E0E0E0] placeholder:text-[#8A8A8A]'
+  : 'focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 bg-[#FAFAFA] border-[#BDBDBD] text-[#333333] placeholder:text-[#707070]',
     dotTheme: darkMode
       ? 'text-[#C9C9C9] hover:bg-[#3C3C3C]'
       : 'text-[#333333] hover:bg-gray-200',
